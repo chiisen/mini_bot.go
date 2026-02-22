@@ -1,0 +1,27 @@
+{
+  "agents": {
+    "defaults": {
+      "model": "minimax/MiniMax-M2.5",
+      "maxTokens": 8192,
+      "temperature": 0.7,
+      "maxToolIterations": 20,
+      "memoryWindow": 50,
+      "workspace": "~/.minibot.go/workspace"
+    }
+  },
+  "providers": {
+    "minimax": {
+      "apiKey": "your-minimax-api-key-here",
+      "apiBase": "https://api.minimax.io/v1"
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "your-telegram-bot-token-here",
+      "allow_from": [
+        "your-telegram-user-id-here"
+      ]
+    }
+  }
+}
