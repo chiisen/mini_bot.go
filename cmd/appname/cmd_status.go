@@ -10,7 +10,7 @@ import (
 
 // RunStatus handles the 'app status' command.
 func RunStatus(args []string) error {
-	fmt.Println("🔍 MiniBot System Status")
+	fmt.Println("🔍 MiniBot.go System Status")
 	fmt.Println("-------------------------")
 
 	// Print Runtime Resources

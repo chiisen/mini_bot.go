@@ -57,7 +57,7 @@ func RunAgent(args []string) error {
 	}
 
 	// Interactive mode
-	fmt.Println("🚀 MiniBot Interactive Mode Started (type 'exit' or 'quit' to leave)")
+	fmt.Println("🚀 MiniBot.go Interactive Mode Started (type 'exit' or 'quit' to leave)")
 	
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

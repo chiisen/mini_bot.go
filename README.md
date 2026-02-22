@@ -1,6 +1,6 @@
-# Mini Bot 🤖
+# MiniBot.go 🤖
 
-Mini Bot 是一個極致輕量、無過度依賴的本地端 AI 助理專案。它專注於以極低的資源消耗（單一執行檔 < 15MB、RAM < 10MB）提供強大的本地工具呼叫與遠端通訊功能。
+MiniBot.go 是一個極致輕量、無過度依賴的本地端 AI 助理專案。它專注於以極低的資源消耗（單一執行檔 < 15MB、RAM < 10MB）提供強大的本地工具呼叫與遠端通訊功能。
 
 專案特別針對開發者與技術玩家設計，支援靈活的 LLM 供應商切換（OpenAI、DeepSeek、MiniMax、Ollama 等）以及透過 Telegram 進行隨時隨地的存取。
 
@@ -77,7 +77,7 @@ make build
 
 ## 🎮 使用方式
 
-Mini Bot 提供了三種主要的操作模式。
+MiniBot.go 提供了三種主要的操作模式。
 
 你可以隨時透過 `status` 指令檢查環境是否健康：
 ```bash
@@ -96,7 +96,7 @@ Mini Bot 提供了三種主要的操作模式。
 ./app agent
 ```
 ```
-🚀 MiniBot Interactive Mode Started (type 'exit' or 'quit' to leave)
+🚀 MiniBot.go Interactive Mode Started (type 'exit' or 'quit' to leave)
 You: 幫我列出目錄下的檔案
 Agent: [Agent uses tool: list_dir...]
 Agent: 根目錄底下有...

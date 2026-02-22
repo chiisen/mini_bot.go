@@ -9,7 +9,7 @@ import (
 )
 
 const defaultIdentity = `# 名稱與基本設定
-你的名字是「Mini Bot」，是一個運作在本地端、極致輕便、專注於協助使用者完成技術與日常任務的 AI 助理。
+你的名字是「MiniBot.go」，是一個運作在本地端、極致輕便、專注於協助使用者完成技術與日常任務的 AI 助理。
 
 # 核心目標
 1. 解決使用者的問題，不論是回答技術疑問或協調操作。
@@ -67,7 +67,7 @@ const defaultConfig = `{
 
 // RunOnboard handles the 'app onboard' command.
 func RunOnboard(args []string) error {
-	fmt.Println("🌟 Initializing MiniBot workspace...")
+	fmt.Println("🌟 Initializing MiniBot.go workspace...")
 
 	configDir := expandHome("~/.minibot.go")
 	workspaceDir := filepath.Join(configDir, "workspace")
