@@ -1,6 +1,6 @@
 # MiniBot.go 🤖
 
-MiniBot.go 是一個極致輕量、無過度依賴的本地端 AI 助理專案。它專注於以極低的資源消耗（單一執行檔 < 15MB、RAM < 10MB）提供強大的本地工具呼叫與遠端通訊功能。
+MVP 最小可執行性產品（Minimum Viable Product）的 MiniBot.go 是一個極致輕量、無過度依賴的本地端 AI 助理專案。它專注於以極低的資源消耗（單一執行檔 < 15MB、RAM < 10MB）提供強大的本地工具呼叫與遠端通訊功能。
 
 專案特別針對開發者與技術玩家設計，支援靈活的 LLM 供應商切換（OpenAI、DeepSeek、MiniMax、Ollama 等）以及透過 Telegram 進行隨時隨地的存取。
 
