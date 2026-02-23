@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"time"
 )
 
@@ -12,7 +13,7 @@ type ExecTool struct {
 	Sandbox *Sandbox
 }
 
-func (t *ExecTool) Name() string { return "exec" }
+func (t *ExecTool) Name() string        { return "exec" }
 func (t *ExecTool) Description() string { return "Execute a shell command inside the workspace" }
 func (t *ExecTool) Parameters() map[string]any {
 	return map[string]any{
@@ -51,23 +52,26 @@ func isCommandSafe(cmd string) bool {
 
 func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	cmdStr, _ := args["command"].(string)
-	
+
 	if !isCommandSafe(cmdStr) {
 		return &ToolResult{ForLLM: "Error: command rejected due to safety sandbox restrictions.", IsError: true}
 	}
-	
+
 	timeoutSec := float64(30)
 	if to, ok := args["timeout"].(float64); ok && to > 0 {
 		timeoutSec = to
 	}
-	
+
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
 	defer cancel()
-	
-	// Determine the shell
+
+	// Determine the shell based on OS
 	var c *exec.Cmd
-	// Typical Unix and Windows support since it's an MVP
-	c = exec.CommandContext(timeoutCtx, "sh", "-c", cmdStr)
+	if runtime.GOOS == "windows" {
+		c = exec.CommandContext(timeoutCtx, "cmd", "/c", cmdStr)
+	} else {
+		c = exec.CommandContext(timeoutCtx, "sh", "-c", cmdStr)
+	}
 	c.Dir = t.Sandbox.Workspace
 
 	outBytes, err := c.CombinedOutput()
@@ -76,10 +80,10 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult
 	if timeoutCtx.Err() == context.DeadlineExceeded {
 		return &ToolResult{ForLLM: fmt.Sprintf("Timeout after %.0f seconds.\nOutput: %s", timeoutSec, resultStr), IsError: true}
 	}
-	
+
 	if err != nil {
 		return &ToolResult{ForLLM: fmt.Sprintf("Error: %v\nOutput: %s", err, resultStr), IsError: true}
 	}
-	
+
 	return &ToolResult{ForLLM: fmt.Sprintf("Command exited successfully.\nOutput: %s", resultStr), IsError: false}
 }

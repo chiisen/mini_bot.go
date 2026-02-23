@@ -23,7 +23,7 @@ func RunStatus(args []string) error {
 	fmt.Println("-------------------------")
 
 	// Check configuration
-	configPath := expandHome("~/.minibot.go/config.json")
+	configPath := expandHome("~/.minibot/config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Printf("⚠️  Config file: Missing at %s\n", configPath)
 		fmt.Println("💡 Tip: Run 'app onboard' to initialize.")

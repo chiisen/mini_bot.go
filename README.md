@@ -114,6 +114,8 @@ Agent: 根目錄底下有...
 - `cmd/appname/`：CLI 指令的進入點 (main, agent, gateway, onboard, status)。
 - `pkg/agent/`：Agent 的大腦核心，負責上下文建構、指令壓縮與 Tool Calling 的思考迴圈。
   - > **注意**：`loop.go` 的 `Run()` 方法需要 Mock LLMProvider 才能完整測試（需要 mock 模擬 AI 回應），因涉及 API 呼叫會產生費用，暫不製作。
+
+> **📝 待完成事項**：部分單元測試（`pkg/providers/`、`pkg/agent/`）需要 mock Go SDK 工具才能執行。這是因為 `pkg/tools/shell.go` 使用 `exec.Command` 動態執行 Go 程式碼來分析專案結構，在隔離測試環境中無法運行。建議未來使用介面模擬（interface mock）方式解決。
 - `pkg/channels/`：頻道管理器與 Telegram 整合。
 - `pkg/tools/`：沙箱、檔案操作與命令列操作之本機工具實作。
 - `pkg/providers/`：各大 LLM 廠商的相容適配層。
