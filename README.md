@@ -113,6 +113,7 @@ Agent: 根目錄底下有...
 ## 🛠 目錄結構與架構
 - `cmd/appname/`：CLI 指令的進入點 (main, agent, gateway, onboard, status)。
 - `pkg/agent/`：Agent 的大腦核心，負責上下文建構、指令壓縮與 Tool Calling 的思考迴圈。
+  - > **注意**：`loop.go` 的 `Run()` 方法需要 Mock LLMProvider 才能完整測試（需要 mock 模擬 AI 回應），因涉及 API 呼叫會產生費用，暫不製作。
 - `pkg/channels/`：頻道管理器與 Telegram 整合。
 - `pkg/tools/`：沙箱、檔案操作與命令列操作之本機工具實作。
 - `pkg/providers/`：各大 LLM 廠商的相容適配層。
