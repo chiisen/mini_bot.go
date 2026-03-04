@@ -51,7 +51,7 @@ type TelegramConfig struct {
 // Load loads the configuration with a 3-tier priority: Default -> JSON -> Env
 func Load(configPath string) (*Config, error) {
 	cfg := &Config{}
-	
+
 	// 1. Apply defaults
 	applyDefaults(cfg)
 
@@ -71,7 +71,7 @@ func Load(configPath string) (*Config, error) {
 
 	// 3. Apply Environment Variable overrides
 	applyEnvOverrides(cfg)
-	
+
 	// Expand workspace path
 	cfg.Agents.Defaults.Workspace = expandHome(cfg.Agents.Defaults.Workspace)
 
@@ -87,7 +87,34 @@ func applyDefaults(cfg *Config) {
 	cfg.Agents.Defaults.RestrictToWorkspace = DefaultRestrictToWS
 }
 
+func loadEnvFile() {
+	envPath := filepath.Join(filepath.Dir(os.Args[0]), ".env")
+	if _, err := os.Stat(envPath); err != nil {
+		envPath = ".env"
+		if _, err := os.Stat(envPath); err != nil {
+			return
+		}
+	}
+
+	data, _ := os.ReadFile(envPath)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			value = strings.Trim(value, `"'`)
+			os.Setenv(key, value)
+		}
+	}
+}
+
 func applyEnvOverrides(cfg *Config) {
+	loadEnvFile()
+
 	if v := os.Getenv("MINIBOT_AGENTS_DEFAULTS_WORKSPACE"); v != "" {
 		cfg.Agents.Defaults.Workspace = v
 	}
@@ -114,13 +141,33 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Agents.Defaults.RestrictToWorkspace = val
 		}
 	}
+
+	if v := os.Getenv("MINIBOT_PROVIDERS_MINIMAX_API_KEY"); v != "" {
+		if cfg.Providers == nil {
+			cfg.Providers = make(map[string]ModelConfig)
+		}
+		if p, ok := cfg.Providers["minimax"]; ok {
+			p.APIKey = v
+			cfg.Providers["minimax"] = p
+		} else {
+			cfg.Providers["minimax"] = ModelConfig{APIKey: v, APIBase: "https://api.minimax.io/v1"}
+		}
+	}
+
+	if v := os.Getenv("MINIBOT_CHANNELS_TELEGRAM_BOT_TOKEN"); v != "" {
+		cfg.Channels.Telegram.Enabled = true
+		cfg.Channels.Telegram.Token = v
+	}
+	if v := os.Getenv("MINIBOT_CHANNELS_TELEGRAM_ALLOW_FROM"); v != "" {
+		cfg.Channels.Telegram.AllowFrom = strings.Split(v, ",")
+	}
 }
 
 // FindModel returns the ModelConfig for the given model string (e.g., "minimax/MiniMax-M2.5").
 func (c *Config) FindModel(modelDef string) (*ModelConfig, error) {
 	parts := strings.SplitN(modelDef, "/", 2)
 	vendor := "openai" // Default fallback
-	
+
 	if len(parts) == 2 {
 		vendor = strings.ToLower(parts[0])
 	}
@@ -130,7 +177,7 @@ func (c *Config) FindModel(modelDef string) (*ModelConfig, error) {
 		p.Model = modelDef // store the full model string to pass down to factory
 		return &p, nil
 	}
-	
+
 	return nil, fmt.Errorf("model not found: %s", modelDef)
 }
 

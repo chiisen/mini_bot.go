@@ -59,9 +59,9 @@ if !strings.HasPrefix(absTargetPath, s.Workspace) {
 - 缺少密鑰輪換機制
 
 **修復任務**:
-- [ ] 新增 `.env` 檔案支援，使用 `os.Getenv` 讀取敏感資訊
-- [ ] 在 config.go 中優先讀取環境變數覆寫
-- [ ] 範例 config.json 中移除所有敏感資訊，改用 placeholder
+- [x] 新增 `.env` 檔案支援，使用 `os.Getenv` 讀取敏感資訊
+- [x] 在 config.go 中優先讀取環境變數覆寫
+- [x] 範例 config.json 中移除所有敏感資訊，改用 placeholder
 - [ ] 新增提示訊息告知使用者勿提交包含密鑰的 config.json
 
 **參考實作位置**: `pkg/config/config.go:90-117`
@@ -103,7 +103,7 @@ if !strings.HasPrefix(absTargetPath, s.Workspace) {
 **問題**: 敏感檔案使用過於寬鬆的權限 (0644)。
 
 **修復任務**:
-- [ ] 記憶體檔案使用 0600 權限
+- [x] 記憶體檔案使用 0600 權限
 - [ ] config 載入時驗證檔案權限，警告過於寬鬆的權限
 - [ ] 新增工作目錄隔離確認
 
