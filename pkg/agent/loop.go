@@ -44,7 +44,7 @@ func (a *AgentInstance) Run(
 	// Append new user input
 	messages = append(messages, providers.Message{
 		Role:    "user",
-		Content: userInput,
+		Content: SanitizeInput(userInput),
 	})
 
 	// Optional: Compress context if needed
@@ -71,7 +71,7 @@ func (a *AgentInstance) Run(
 			"temperature": a.Config.Agents.Defaults.Temperature,
 			"max_tokens":  a.Config.Agents.Defaults.MaxTokens,
 		})
-		
+
 		if err != nil {
 			return fmt.Errorf("llm chat provider error: %w", err)
 		}

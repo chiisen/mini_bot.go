@@ -9,6 +9,45 @@ import (
 	"github.com/chiisen/mini_bot/pkg/providers"
 )
 
+const MaxInputLength = 10000
+
+var injectionPatterns = []string{
+	"ignore previous instructions",
+	"ignore all previous instructions",
+	"disregard previous",
+	"forget all instructions",
+	"you are now",
+	"you are a",
+	"act as",
+	"pretend to be",
+	"roleplay as",
+	"new instructions:",
+	"system:",
+	"assistant:",
+	"human:",
+}
+
+func SanitizeInput(input string) string {
+	if len(input) > MaxInputLength {
+		input = input[:MaxInputLength]
+	}
+
+	lower := strings.ToLower(input)
+	for _, pattern := range injectionPatterns {
+		if strings.Contains(lower, pattern) {
+			marker := fmt.Sprintf("[FILTERED %s]", strings.ToUpper(pattern))
+			input = strings.ReplaceAll(input, pattern, marker)
+		}
+	}
+
+	input = strings.ReplaceAll(input, "<script", "&lt;script")
+	input = strings.ReplaceAll(input, "</script>", "&lt;/script>")
+	input = strings.ReplaceAll(input, "{{", "&lbrace;&lbrace;")
+	input = strings.ReplaceAll(input, "}}", "&rbrace;&rbrace;")
+
+	return input
+}
+
 type Builder struct {
 	WorkspacePath string
 }

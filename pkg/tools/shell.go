@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,17 @@ func (t *ExecTool) Parameters() map[string]any {
 	}
 }
 
+var allowedCommands = map[string]bool{
+	"ls": true, "dir": true, "cd": true, "pwd": true,
+	"cat": true, "head": true, "tail": true, "less": true,
+	"grep": true, "egrep": true, "fgrep": true,
+	"find": true, "xargs": true,
+	"wc": true, "sort": true, "uniq": true, "cut": true,
+	"echo": true, "printf": true,
+	"stat": true, "file": true, "md5sum": true, "sha256sum": true,
+	"tree": true, "ls -la": true, "ls -l": true,
+}
+
 var dangerPatterns = []string{
 	`rm\s+-rf\s+/`,
 	`del\s+/f`,
@@ -38,6 +50,62 @@ var dangerPatterns = []string{
 	`reboot\b`,
 	`poweroff\b`,
 	`:\(\)\{\s+:\|:&\s+\};:`,
+	`;\s*rm\s+`,
+	`\|\s*rm\s+`,
+	`&&\s*rm\s+`,
+	`\|\|\s*rm\s+`,
+	`\$\(.*\)`,
+	"`.*`",
+}
+
+var dangerCommands = []string{
+	"curl", "wget", "nc", "ncat", "bash", "powershell", "sh",
+	"python", "python3", "perl", "ruby", "php", "node",
+	"npm", "pip", "cargo", "go", "rustc",
+	"ssh", "scp", "sftp", "ftp", "telnet",
+	"chmod", "chown", "chgrp",
+	"kill", "killall", "pkill",
+	"mount", "umount",
+	"fdisk", "parted", "sfdisk",
+	"sudo", "su",
+	"git", "svn", "hg",
+	"docker", "kubectl", "helm",
+	"tar", "gzip", "bzip2", "xz", "zip", "unzip",
+	"sed", "awk", "vim", "nano", "emacs",
+	"ln", "unlink", "touch", "mkdir", "rmdir",
+}
+
+func validateCommand(cmd string) bool {
+	fields := strings.Fields(cmd)
+	if len(fields) == 0 {
+		return false
+	}
+
+	baseCmd := strings.ToLower(fields[0])
+
+	if _, ok := allowedCommands[baseCmd]; ok {
+		return true
+	}
+	if strings.HasPrefix(baseCmd, "ls-") {
+		return true
+	}
+
+	for _, dc := range dangerCommands {
+		if baseCmd == dc {
+			return false
+		}
+	}
+
+	return len(fields) > 0
+}
+
+func sanitizeCommand(cmd string) string {
+	sanitized := cmd
+	dangerChars := []string{";", "|", "&&", "||", "$(", "`", "\\\n"}
+	for _, dc := range dangerChars {
+		sanitized = strings.ReplaceAll(sanitized, dc, "")
+	}
+	return strings.TrimSpace(sanitized)
 }
 
 func isCommandSafe(cmd string) bool {
@@ -53,7 +121,12 @@ func isCommandSafe(cmd string) bool {
 func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *ToolResult {
 	cmdStr, _ := args["command"].(string)
 
-	if !isCommandSafe(cmdStr) {
+	sanitized := sanitizeCommand(cmdStr)
+	if sanitized != cmdStr {
+		cmdStr = sanitized
+	}
+
+	if !validateCommand(cmdStr) || !isCommandSafe(cmdStr) {
 		return &ToolResult{ForLLM: "Error: command rejected due to safety sandbox restrictions.", IsError: true}
 	}
 
