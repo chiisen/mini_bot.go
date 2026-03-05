@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/chiisen/mini_bot/pkg/i18n"
 	"github.com/chiisen/mini_bot/pkg/providers"
 )
 
@@ -174,6 +175,8 @@ func NewContextBuilder(workspacePath string) *Builder {
 func (b *Builder) Build(tools []providers.ToolDefinition) (string, error) {
 	var parts []string // 用於存儲所有部分的切片
 
+	t := i18n.GetInstance()
+
 	// ---------------------------------------------------------------------
 	// 步驟 1: 定義要載入的檔案列表
 	// ---------------------------------------------------------------------
@@ -184,11 +187,11 @@ func (b *Builder) Build(tools []providers.ToolDefinition) (string, error) {
 		FileName string
 		Header   string
 	}{
-		{"IDENTITY.md", "[IDENTITY]"},                      // AI 身份定義
-		{"AGENT.md", "[AGENT GUIDELINES]"},                 // Agent 行為指南
-		{"SOUL.md", "[PERSONALITY]"},                       // AI 人格特徵
-		{"USER.md", "[USER PREFERENCES]"},                  // 使用者偏好設定
-		{filepath.Join("memory", "MEMORY.md"), "[MEMORY]"}, // 長期記憶 (可選)
+		{"IDENTITY.md", t.T("sections.identity")},
+		{"AGENT.md", t.T("sections.agent_guidelines")},
+		{"SOUL.md", t.T("sections.personality")},
+		{"USER.md", t.T("sections.user_preferences")},
+		{filepath.Join("memory", "MEMORY.md"), t.T("sections.memory")},
 	}
 
 	// ---------------------------------------------------------------------
@@ -215,7 +218,7 @@ func (b *Builder) Build(tools []providers.ToolDefinition) (string, error) {
 	// 如果有可用的工具，附加工具列表和使用說明到提示詞中
 	if len(tools) > 0 {
 		var toolDesc strings.Builder // 使用 strings.Builder 優化字串拼接
-		toolDesc.WriteString("[AVAILABLE TOOLS]\n")
+		toolDesc.WriteString(t.T("sections.available_tools") + "\n")
 		toolDesc.WriteString("You have access to the following tools:\n")
 
 		// 遍歷所有工具，生成工具列表

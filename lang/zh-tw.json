@@ -1,0 +1,70 @@
+{
+  "app": {
+    "name": "MiniBot.go",
+    "version": "v0.1.0 MVP"
+  },
+  "cli": {
+    "usage": "使用方式: app <指令> [參數]",
+    "commands": {
+      "onboard": "初始化配置和工作區",
+      "agent": "啟動單次互動或互動模式",
+      "gateway": "啟動 Telegram 閘道器",
+      "version": "顯示版本",
+      "status": "顯示系統狀態"
+    },
+    "unknown_command": "未知指令: %s",
+    "error": "錯誤: %v"
+  },
+  "agent": {
+    "start": "MiniBot.go 互動模式已啟動 (輸入 'exit' 或 'quit' 離開)",
+    "prompt": "你: ",
+    "stopped": "[Agent 已停止：達到最大工具迭代次數]",
+    "using_tool": "[Agent 正在使用工具: %s...]"
+  },
+  "sections": {
+    "identity": "[身份定義]",
+    "agent_guidelines": "[Agent 指南]",
+    "personality": "[人格特徵]",
+    "user_preferences": "[使用者偏好]",
+    "memory": "[長期記憶]",
+    "available_tools": "[可用工具]"
+  },
+  "tools": {
+    "read_file": "讀取檔案的完整內容",
+    "write_file": "覆寫或建立新檔案",
+    "append_file": "將內容追加到檔案末尾",
+    "edit_file": "替換指定行範圍的內容 (從 1 開始編號)",
+    "list_dir": "列出目錄內容",
+    "execute_command": "執行終端機指令並返回輸出",
+    "web_search": "使用 DuckDuckGo 搜尋網路資訊"
+  },
+  "tool_params": {
+    "path": "檔案路徑 (相對於工作區)",
+    "content": "新內容",
+    "path_or_content": "路徑或內容 (視工具而定)",
+    "directory_path": "目錄路徑 (相對於工作區)",
+    "start_line": "起始行號 (從 1 開始)",
+    "end_line": "結束行號 (從 1 開始，包含)",
+    "new_content": "要替換的新內容",
+    "command": "要執行的終端機指令"
+  },
+  "errors": {
+    "tool_not_found": "找不到工具 '%s'。",
+    "path_invalid": "錯誤：路徑包含無效字元",
+    "tool_panic": "工具發生 Panic: %v",
+    "read_failed": "讀取檔案失敗: %v",
+    "write_failed": "寫入檔案失敗: %v",
+    "dir_failed": "讀取目錄失敗: %v"
+  },
+  "warnings": {
+    "sensitive_data": "警告：偵測到設定檔中有敏感資料。請勿將 config.json 連同真實的 API Key 或 Token 提交到版本控制！",
+    "use_env": "請改用環境變數 (參見 .env 檔案)。",
+    "config_permissions": "警告：設定檔 %s 的權限過於寬鬆 (%o)。建議限制為 0600。",
+    "workspace_permissions": "警告：工作區目錄 %s 的權限過於寬鬆 (%o)。建議限制為 0700。"
+  },
+  "status": {
+    "workspace": "工作區: %s",
+    "model": "模型: %s",
+    "telegram": "Telegram: %s"
+  }
+}

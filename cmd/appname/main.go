@@ -20,6 +20,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 // main 是程式的入口函數，負責解析命令列參數並分發到對應的處理函數。
@@ -62,17 +64,20 @@ func main() {
 		// gateway 命令：啟動 Telegram 閘道器
 		// 允許透過 Telegram 與 Agent 互動
 		if err := RunGateway(args); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			t := i18n.GetInstance()
+			fmt.Fprintf(os.Stderr, t.T("cli.error")+"\n", err)
 			os.Exit(1)
 		}
 	case "version":
 		// version 命令：顯示程式版本
-		fmt.Println("mini_bot v0.1.0 MVP")
+		t := i18n.GetInstance()
+		fmt.Printf("%s %s\n", t.T("app.name"), t.T("app.version"))
 	case "status":
 		// status 命令：顯示系統狀態
 		// 可顯示目前的工作區、配置狀態等資訊
 		if err := RunStatus(args); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			t := i18n.GetInstance()
+			fmt.Fprintf(os.Stderr, t.T("cli.error")+"\n", err)
 			os.Exit(1)
 		}
 	case "help", "-h", "--help":
@@ -80,7 +85,8 @@ func main() {
 		printHelp()
 	default:
 		// 未知命令：顯示錯誤訊息和說明
-		fmt.Printf("Unknown command: %s\n", command)
+		t := i18n.GetInstance()
+		fmt.Printf(t.T("cli.unknown_command")+"\n", command)
 		printHelp()
 		os.Exit(1)
 	}
@@ -92,13 +98,13 @@ func main() {
 //   - 程式的基本使用語法
 //   - 所有可用的子命令及其簡短描述
 func printHelp() {
-	fmt.Print(`Usage: app <command> [arguments]
+	t := i18n.GetInstance()
+	fmt.Print(t.T("cli.usage") + `
 
-The commands are:
-    onboard      Initialize config and workspace
-    agent        Start single interaction or interactive mode
-    gateway      Start Telegram gateway
-    version      Print version
-    status       Print system status (P1)
+` + t.T("cli.commands.onboard") + `
+    ` + t.T("cli.commands.agent") + `
+    ` + t.T("cli.commands.gateway") + `
+    ` + t.T("cli.commands.version") + `
+    ` + t.T("cli.commands.status") + `
 `)
 }

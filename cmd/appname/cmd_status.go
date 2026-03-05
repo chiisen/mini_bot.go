@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/chiisen/mini_bot/pkg/config"
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 // RunStatus handles the 'app status' command.
@@ -23,7 +24,7 @@ func RunStatus(args []string) error {
 	fmt.Println("-------------------------")
 
 	// Check configuration
-	configPath := expandHome("~/.minibot/config.json")
+	configPath := expandHome("~/.minibot.go/config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Printf("⚠️  Config file: Missing at %s\n", configPath)
 		fmt.Println("💡 Tip: Run 'app onboard' to initialize.")
@@ -38,6 +39,18 @@ func RunStatus(args []string) error {
 	}
 
 	fmt.Printf("✅ Default Model: %s\n", cfg.Agents.Defaults.Model)
+
+	// Language
+	t := i18n.GetInstance()
+	envLang := os.Getenv("MINIBOT_LANGUAGE")
+	if envLang != "" {
+		fmt.Printf("🌐 Language: %s (from env)\n", envLang)
+	} else if cfg.Language != "" {
+		fmt.Printf("🌐 Language: %s (from config)\n", cfg.Language)
+	} else {
+		fmt.Printf("🌐 Language: %s (default)\n", t.GetLang())
+	}
+
 	fmt.Printf("✅ Workspace Path: %s\n", cfg.Agents.Defaults.Workspace)
 
 	if _, err := os.Stat(cfg.Agents.Defaults.Workspace); os.IsNotExist(err) {

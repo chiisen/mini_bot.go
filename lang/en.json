@@ -1,0 +1,70 @@
+{
+  "app": {
+    "name": "MiniBot.go",
+    "version": "v0.1.0 MVP"
+  },
+  "cli": {
+    "usage": "Usage: app <command> [arguments]",
+    "commands": {
+      "onboard": "Initialize config and workspace",
+      "agent": "Start single interaction or interactive mode",
+      "gateway": "Start Telegram gateway",
+      "version": "Print version",
+      "status": "Print system status"
+    },
+    "unknown_command": "Unknown command: %s",
+    "error": "Error: %v"
+  },
+  "agent": {
+    "start": "MiniBot.go Interactive Mode Started (type 'exit' or 'quit' to leave)",
+    "prompt": "You: ",
+    "stopped": "[Agent stopped: reached maximum tool iteration limit]",
+    "using_tool": "[Agent uses tool: %s...]"
+  },
+  "sections": {
+    "identity": "[IDENTITY]",
+    "agent_guidelines": "[AGENT GUIDELINES]",
+    "personality": "[PERSONALITY]",
+    "user_preferences": "[USER PREFERENCES]",
+    "memory": "[MEMORY]",
+    "available_tools": "[AVAILABLE TOOLS]"
+  },
+  "tools": {
+    "read_file": "Read entire file content",
+    "write_file": "Overwrite or create a file with given content",
+    "append_file": "Append content to the end of a file",
+    "edit_file": "Replace content in a line range (1-indexed, inclusive)",
+    "list_dir": "List contents of a directory",
+    "execute_command": "Execute a shell command and return its output",
+    "web_search": "Search the web for information using DuckDuckGo"
+  },
+  "tool_params": {
+    "path": "Path to the file relative to workspace",
+    "content": "New content",
+    "path_or_content": "Path or content depending on the tool",
+    "directory_path": "Directory path relative to workspace",
+    "start_line": "Starting line number (1-indexed)",
+    "end_line": "Ending line number (1-indexed, inclusive)",
+    "new_content": "New content to replace within the range",
+    "command": "Shell command to execute"
+  },
+  "errors": {
+    "tool_not_found": "Tool '%s' not found.",
+    "path_invalid": "Error: path contains invalid characters",
+    "tool_panic": "Tool panic: %v",
+    "read_failed": "Failed to read file: %v",
+    "write_failed": "Failed to write file: %v",
+    "dir_failed": "Failed to read dir: %v"
+  },
+  "warnings": {
+    "sensitive_data": "WARNING: Sensitive data detected in config file. Do NOT commit config.json with real API keys or tokens to version control!",
+    "use_env": "Use environment variables instead (see .env file).",
+    "config_permissions": "WARNING: Config file %s has overly permissive permissions (%o). Consider restricting to 0600.",
+    "workspace_permissions": "WARNING: Workspace directory %s has overly permissive permissions (%o). Consider restricting to 0700."
+  },
+  "status": {
+    "workspace": "Workspace: %s",
+    "model": "Model: %s",
+    "telegram": "Telegram: %s"
+  }
+}

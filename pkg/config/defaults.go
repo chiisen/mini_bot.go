@@ -9,4 +9,5 @@ const (
 	DefaultRestrictToWS      = true
 	DefaultConfigDir         = "~/.minibot.go"
 	DefaultConfigFile        = "~/.minibot.go/config.json"
+	DefaultLanguage          = "en"
 )

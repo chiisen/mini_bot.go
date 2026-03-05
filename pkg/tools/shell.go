@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 type ExecTool struct {
@@ -15,12 +17,12 @@ type ExecTool struct {
 }
 
 func (t *ExecTool) Name() string        { return "exec" }
-func (t *ExecTool) Description() string { return "Execute a shell command inside the workspace" }
+func (t *ExecTool) Description() string { return i18n.GetInstance().T("tools.execute_command") }
 func (t *ExecTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"command": map[string]any{"type": "string", "description": "The shell command to execute"},
+			"command": map[string]any{"type": "string", "description": i18n.GetInstance().T("tool_params.command")},
 			"timeout": map[string]any{"type": "integer", "description": "Timeout in seconds, default 30"},
 		},
 		"required": []string{"command"},

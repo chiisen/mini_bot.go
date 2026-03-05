@@ -7,12 +7,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 type Config struct {
 	Agents    AgentsConfig           `json:"agents"`
 	Providers map[string]ModelConfig `json:"providers"`
 	Channels  ChannelsConfig         `json:"channels"`
+	Language  string                 `json:"language"`
 }
 
 type AgentsConfig struct {
@@ -55,6 +58,18 @@ func Load(configPath string) (*Config, error) {
 	// 1. Apply defaults
 	applyDefaults(cfg)
 
+	// Initialize i18n early (use env var if set, otherwise use default)
+	i18nInst := i18n.GetInstance()
+	execDir, _ := os.Executable()
+	langDir := filepath.Join(filepath.Dir(execDir), "lang")
+	if _, err := os.Stat(langDir); os.IsNotExist(err) {
+		langDir = "./lang"
+	}
+	_ = i18nInst.LoadFromDir(langDir)
+	if lang := os.Getenv("MINIBOT_LANGUAGE"); lang != "" {
+		i18nInst.SetLang(lang)
+	}
+
 	// Expand ~ to user home dir for configPath
 	expandedPath := expandHome(configPath)
 
@@ -68,6 +83,10 @@ func Load(configPath string) (*Config, error) {
 		}
 		if err := json.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+		// After JSON loaded, update i18n language if NOT set by env
+		if os.Getenv("MINIBOT_LANGUAGE") == "" && cfg.Language != "" {
+			i18nInst.SetLang(cfg.Language)
 		}
 		warnIfSensitiveDataPresent(data)
 	}
@@ -91,6 +110,7 @@ func applyDefaults(cfg *Config) {
 	cfg.Agents.Defaults.Temperature = DefaultTemperature
 	cfg.Agents.Defaults.MaxToolIterations = DefaultMaxToolIterations
 	cfg.Agents.Defaults.RestrictToWorkspace = DefaultRestrictToWS
+	cfg.Language = DefaultLanguage
 }
 
 func loadEnvFile() {
@@ -215,8 +235,9 @@ func warnIfSensitiveDataPresent(data []byte) {
 					}
 					value := content[start+1 : end]
 					if value != "" && value != "YOUR_" && !strings.HasPrefix(value, "PLACEHOLDER") && !strings.HasPrefix(value, "example") {
-						fmt.Println("WARNING: Sensitive data detected in config file. Do NOT commit config.json with real API keys or tokens to version control!")
-						fmt.Println("Use environment variables instead (see .env file).")
+						t := i18n.GetInstance()
+						fmt.Println(t.T("warnings.sensitive_data"))
+						fmt.Println(t.T("warnings.use_env"))
 						return
 					}
 				}
@@ -232,7 +253,8 @@ func checkFilePermissions(path string) {
 	}
 	mode := info.Mode().Perm()
 	if mode&0077 != 0 {
-		fmt.Printf("WARNING: Config file %s has overly permissive permissions (%o). Consider restricting to 0600.\n", path, mode)
+		t := i18n.GetInstance()
+		fmt.Printf(t.T("warnings.config_permissions")+"\n", path, mode)
 	}
 }
 
@@ -249,7 +271,8 @@ func checkWorkspaceIsolation(workspace string) error {
 	}
 	mode := info.Mode().Perm()
 	if mode&0077 != 0 {
-		fmt.Printf("WARNING: Workspace directory %s has overly permissive permissions (%o). Consider restricting to 0700.\n", workspace, mode)
+		t := i18n.GetInstance()
+		fmt.Printf(t.T("warnings.workspace_permissions")+"\n", workspace, mode)
 	}
 	return nil
 }

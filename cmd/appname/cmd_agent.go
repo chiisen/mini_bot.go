@@ -26,6 +26,7 @@ import (
 
 	"github.com/chiisen/mini_bot/pkg/agent"
 	"github.com/chiisen/mini_bot/pkg/config"
+	"github.com/chiisen/mini_bot/pkg/i18n"
 	"github.com/chiisen/mini_bot/pkg/logger"
 )
 
@@ -145,7 +146,8 @@ func RunAgent(args []string) error {
 	// 使用者可以輸入多條訊息，Agent 會即時回覆
 
 	// 顯示歡迎訊息
-	fmt.Println("🚀 MiniBot.go Interactive Mode Started (type 'exit' or 'quit' to leave)")
+	t := i18n.GetInstance()
+	fmt.Println(t.T("agent.start"))
 
 	// 建立通道接收系統中斷信號 (Ctrl+C)
 	c := make(chan os.Signal, 1)
@@ -166,7 +168,7 @@ func RunAgent(args []string) error {
 	// 主對話迴圈
 	for {
 		// 顯示提示符
-		fmt.Print("You: ")
+		fmt.Print(t.T("agent.prompt"))
 
 		// 讀取一行輸入
 		if !scanner.Scan() {
@@ -191,7 +193,7 @@ func RunAgent(args []string) error {
 		// 呼叫 Agent 實例的 Run 方法處理輸入
 		if err := instance.Run(ctx, sessionKey, input, printReply); err != nil {
 			// 發生錯誤時顯示錯誤訊息，但繼續迴圈
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf(t.T("cli.error")+"\n", err)
 		}
 	}
 

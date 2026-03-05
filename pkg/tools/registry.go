@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chiisen/mini_bot/pkg/i18n"
 	"github.com/chiisen/mini_bot/pkg/providers"
 )
 
@@ -94,8 +95,8 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string
 	// 工具不存在處理
 	if !ok {
 		return &ToolResult{
-			ForLLM:  fmt.Sprintf("Tool '%s' not found.", name), // 錯誤訊息會傳給 LLM
-			IsError: true,                                      // 標記為錯誤
+			ForLLM:  fmt.Sprintf(i18n.GetInstance().T("errors.tool_not_found"), name),
+			IsError: true,
 		}
 	}
 
@@ -111,7 +112,7 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string
 			if rec := recover(); rec != nil {
 				// 將 Panic 轉換為錯誤結果
 				res = &ToolResult{
-					ForLLM:  fmt.Sprintf("Tool panic: %v", rec),
+					ForLLM:  fmt.Sprintf(i18n.GetInstance().T("errors.tool_panic"), rec),
 					IsError: true,
 				}
 			}

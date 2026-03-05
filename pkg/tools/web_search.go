@@ -9,12 +9,14 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 type WebSearchTool struct{}
 
-func (t *WebSearchTool) Name() string { return "web_search" }
-func (t *WebSearchTool) Description() string { return "Search the web using DuckDuckGo HTML edition" }
+func (t *WebSearchTool) Name() string        { return "web_search" }
+func (t *WebSearchTool) Description() string { return i18n.GetInstance().T("tools.web_search") }
 func (t *WebSearchTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -41,7 +43,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *ToolR
 	if err != nil {
 		return &ToolResult{ForLLM: fmt.Sprintf("Error creating request: %v", err), IsError: true}
 	}
-	
+
 	// DDG HTML requires a user-agent to not block requests immediately
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36")
 
@@ -74,7 +76,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		if len(match) == 3 {
 			link := match[1]
 			snippet := tagRemover.ReplaceAllString(match[2], "")
-			
+
 			// DDG redirects
 			if strings.HasPrefix(link, "//duckduckgo.com/l/?uddg=") {
 				link = strings.TrimPrefix(link, "//duckduckgo.com/l/?uddg=")

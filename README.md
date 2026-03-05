@@ -203,6 +203,38 @@ make build
 
 > 💡 **注意**：Provider 名稱必須與 `agents.defaults.model` 的前綴對應。例如 `minimax/MiniMax-M2.5` 會對應到 `providers.minimax`。
 
+### 🌐 多語系設定
+
+MiniBot.go 支援多語系 (英文/繁體中文)。設定方式有兩種：
+
+#### 方式一：透過 Config 設定
+在 `~/.minibot.go/config.json` 中加入 `language` 欄位：
+
+```json
+{
+  "language": "zh-tw",
+  "agents": { ... },
+  ...
+}
+```
+
+可用語言：
+- `"en"` - 英文 (預設)
+- `"zh-tw"` - 繁體中文
+
+#### 方式二：透過環境變數設定
+```bash
+export MINIBOT_LANGUAGE=zh-tw
+```
+
+> 💡 **注意**：環境變數優先於 Config 設定。
+
+#### 查看目前語言
+```bash
+./app status
+```
+輸出中會顯示 `🌐 Language: zh-tw (from config)` 或 `(from env)`。
+
 ---
 
 ## 🎮 使用方式

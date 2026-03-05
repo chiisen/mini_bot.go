@@ -25,6 +25,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/chiisen/mini_bot/pkg/i18n"
 )
 
 // ============================================================================
@@ -57,7 +59,6 @@ func isValidPathChars(path string) bool {
 
 // ============================================================================
 // ReadFileTool: 讀取檔案工具
-// ============================================================================
 // 功能：讀取指定檔案的完整內容
 // 工具名稱：read_file
 type ReadFileTool struct {
@@ -67,8 +68,8 @@ type ReadFileTool struct {
 // Name 返回工具名稱
 func (t *ReadFileTool) Name() string { return "read_file" }
 
-// Description 返回工具描述
-func (t *ReadFileTool) Description() string { return "Read entire file content" }
+// Description 返回工具描述 (多語系)
+func (t *ReadFileTool) Description() string { return i18n.GetInstance().T("tools.read_file") }
 
 // Parameters 返回工具參數定義 (JSON Schema 格式)
 func (t *ReadFileTool) Parameters() map[string]any {
@@ -77,7 +78,7 @@ func (t *ReadFileTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Path to the file relative to workspace", // 相對於工作區的路徑
+				"description": i18n.GetInstance().T("tool_params.path"),
 			},
 		},
 		"required": []string{"path"}, // path 是必填參數
@@ -97,7 +98,7 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 
 	// 驗證路徑安全性
 	if !isValidPathChars(path) {
-		return &ToolResult{ForLLM: "Error: path contains invalid characters", IsError: true}
+		return &ToolResult{ForLLM: i18n.GetInstance().T("errors.path_invalid"), IsError: true}
 	}
 
 	// 透過沙盒取得安全路徑
@@ -109,7 +110,7 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 	// 讀取檔案
 	content, err := os.ReadFile(safePath)
 	if err != nil {
-		return &ToolResult{ForLLM: fmt.Sprintf("Failed to read file: %v", err), IsError: true}
+		return &ToolResult{ForLLM: fmt.Sprintf(i18n.GetInstance().T("errors.read_failed"), err), IsError: true}
 	}
 
 	// 為輸出添加行號
@@ -139,18 +140,18 @@ type WriteFileTool struct {
 }
 
 func (t *WriteFileTool) Name() string        { return "write_file" }
-func (t *WriteFileTool) Description() string { return "Overwrite or create a file with given content" }
+func (t *WriteFileTool) Description() string { return i18n.GetInstance().T("tools.write_file") }
 func (t *WriteFileTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path", // 檔案路徑
+				"description": i18n.GetInstance().T("tool_params.path"),
 			},
 			"content": map[string]any{
 				"type":        "string",
-				"description": "New content", // 新內容
+				"description": i18n.GetInstance().T("tool_params.content"),
 			},
 		},
 		"required": []string{"path", "content"}, // path 和 content 都是必填
@@ -164,7 +165,7 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 
 	// 驗證路徑安全性
 	if !isValidPathChars(path) {
-		return &ToolResult{ForLLM: "Error: path contains invalid characters", IsError: true}
+		return &ToolResult{ForLLM: i18n.GetInstance().T("errors.path_invalid"), IsError: true}
 	}
 
 	// 取得安全路徑
@@ -176,7 +177,7 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 	// 寫入檔案
 	// 權限 0600: rw------- (只有所有者可讀寫)
 	if err := os.WriteFile(safePath, []byte(content), 0600); err != nil {
-		return &ToolResult{ForLLM: fmt.Sprintf("Failed to write file: %v", err), IsError: true}
+		return &ToolResult{ForLLM: fmt.Sprintf(i18n.GetInstance().T("errors.write_failed"), err), IsError: true}
 	}
 	return &ToolResult{ForLLM: "File written successfully.", IsError: false}
 }
@@ -192,18 +193,18 @@ type AppendFileTool struct {
 }
 
 func (t *AppendFileTool) Name() string        { return "append_file" }
-func (t *AppendFileTool) Description() string { return "Append content to the end of a file" }
+func (t *AppendFileTool) Description() string { return i18n.GetInstance().T("tools.append_file") }
 func (t *AppendFileTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path", // 檔案路徑
+				"description": i18n.GetInstance().T("tool_params.path"),
 			},
 			"content": map[string]any{
 				"type":        "string",
-				"description": "Content to append", // 要追加的內容
+				"description": i18n.GetInstance().T("tool_params.content"),
 			},
 		},
 		"required": []string{"path", "content"},
@@ -217,7 +218,7 @@ func (t *AppendFileTool) Execute(ctx context.Context, args map[string]any) *Tool
 
 	// 驗證路徑安全性
 	if !isValidPathChars(path) {
-		return &ToolResult{ForLLM: "Error: path contains invalid characters", IsError: true}
+		return &ToolResult{ForLLM: i18n.GetInstance().T("errors.path_invalid"), IsError: true}
 	}
 
 	// 取得安全路徑
@@ -259,7 +260,7 @@ type EditFileTool struct {
 
 func (t *EditFileTool) Name() string { return "edit_file" }
 func (t *EditFileTool) Description() string {
-	return "Replace content in a line range (1-indexed, inclusive)"
+	return i18n.GetInstance().T("tools.edit_file")
 }
 func (t *EditFileTool) Parameters() map[string]any {
 	return map[string]any{
@@ -267,19 +268,19 @@ func (t *EditFileTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "File path", // 檔案路徑
+				"description": i18n.GetInstance().T("tool_params.path"),
 			},
 			"start_line": map[string]any{
 				"type":        "integer",
-				"description": "Starting line number (1-indexed)", // 起始行號 (從 1 開始)
+				"description": i18n.GetInstance().T("tool_params.start_line"),
 			},
 			"end_line": map[string]any{
 				"type":        "integer",
-				"description": "Ending line number (1-indexed, inclusive)", // 結束行號
+				"description": i18n.GetInstance().T("tool_params.end_line"),
 			},
 			"new_content": map[string]any{
 				"type":        "string",
-				"description": "New content to replace within the range", // 替換的新內容
+				"description": i18n.GetInstance().T("tool_params.new_content"),
 			},
 		},
 		"required": []string{"path", "start_line", "end_line", "new_content"},
@@ -301,7 +302,7 @@ func (t *EditFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 
 	// 驗證路徑安全性
 	if !isValidPathChars(path) {
-		return &ToolResult{ForLLM: "Error: path contains invalid characters", IsError: true}
+		return &ToolResult{ForLLM: i18n.GetInstance().T("errors.path_invalid"), IsError: true}
 	}
 
 	// 轉換為整數
@@ -361,14 +362,14 @@ type ListDirTool struct {
 }
 
 func (t *ListDirTool) Name() string        { return "list_dir" }
-func (t *ListDirTool) Description() string { return "List contents of a directory" }
+func (t *ListDirTool) Description() string { return i18n.GetInstance().T("tools.list_dir") }
 func (t *ListDirTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Directory path relative to workspace", // 相對於工作區的路徑
+				"description": i18n.GetInstance().T("tool_params.directory_path"),
 			},
 		},
 		"required": []string{"path"},
@@ -381,7 +382,7 @@ func (t *ListDirTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 
 	// 驗證路徑安全性
 	if !isValidPathChars(path) {
-		return &ToolResult{ForLLM: "Error: path contains invalid characters", IsError: true}
+		return &ToolResult{ForLLM: i18n.GetInstance().T("errors.path_invalid"), IsError: true}
 	}
 
 	// 取得安全路徑
