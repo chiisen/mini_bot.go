@@ -274,7 +274,7 @@ project-root/
 
 ## 🔌 核心介面規格
 
-詳細的介面規格與資料流請參考 [docs/mvp_architecture.md](docs/mvp_architecture.md)。
+詳細的介面規格與資料流請參考 [mvp_architecture.md](./mvp_architecture.md)。
 
 ---
 
@@ -301,4 +301,4 @@ MVP 完成時應達成以下目標：
 
 ## 📎 補充文件
 
-- [架構設計與資料流](docs/mvp_architecture.md) — 詳細的模組互動、介面定義與資料流圖
+- [架構設計與資料流](./mvp_architecture.md) — 詳細的模組互動、介面定義與資料流圖
