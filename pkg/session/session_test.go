@@ -1,6 +1,7 @@
 package session
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/chiisen/mini_bot/pkg/providers"
@@ -150,5 +151,28 @@ func TestManager_Compress_NoSystemMessage(t *testing.T) {
 	// Should keep last 10
 	if len(compressed) != 10 {
 		t.Errorf("expected 10 messages after compression, got %d", len(compressed))
+	}
+}
+
+// TestManager_Save_CreatesStorageDir 驗證儲存目錄不存在時 Save 仍能成功。
+//
+// 只有走過 `app onboard` 的預設 workspace 才會有 sessions 目錄；以環境變數或
+// config 指定其他 workspace 時，先前每次儲存都會以 no such file or directory
+// 失敗——使用者會看到完整回覆，卻在最後收到錯誤且會話沒有被保存。
+func TestManager_Save_CreatesStorageDir(t *testing.T) {
+	nestedDir := filepath.Join(t.TempDir(), "nonexistent", "sessions")
+	m := NewManager(nestedDir)
+
+	messages := []providers.Message{{Role: "user", Content: "Hello"}}
+	if err := m.Save("new-session", messages); err != nil {
+		t.Fatalf("expected Save to create the storage dir, got error: %v", err)
+	}
+
+	loaded, err := m.Load("new-session")
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+	if len(loaded) != 1 || loaded[0].Content != "Hello" {
+		t.Errorf("unexpected loaded messages: %+v", loaded)
 	}
 }
