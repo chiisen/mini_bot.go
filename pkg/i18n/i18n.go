@@ -19,7 +19,7 @@ type I18n struct {
 	translations   map[string]map[string]any
 	currentLang    string
 	availableLangs []string
-	initialized    bool
+	initOnce       sync.Once
 }
 
 func init() {
@@ -28,7 +28,6 @@ func init() {
 			translations:   make(map[string]map[string]any),
 			currentLang:    "en",
 			availableLangs: []string{"en", "zh-tw"},
-			initialized:    false,
 		}
 	})
 	execDir, _ = os.Getwd()
@@ -38,24 +37,28 @@ func GetInstance() *I18n {
 	return instance
 }
 
+// ensureInitialized 只在第一次取用翻譯時載入語言檔。
+//
+// 必須是執行緒安全的：gateway 模式下會有多個 goroutine 同時呼叫 T()，
+// 而載入動作會寫入 translations map，未同步的並行寫入會直接以
+// fatal error: concurrent map writes 終止程式。
 func (i *I18n) ensureInitialized() {
-	if i.initialized {
-		return
-	}
-	langDir := filepath.Join(execDir, "lang")
-	if _, err := os.Stat(langDir); os.IsNotExist(err) {
-		langDir = "./lang"
-	}
-	_ = i.LoadFromDir(langDir)
+	i.initOnce.Do(func() {
+		langDir := filepath.Join(execDir, "lang")
+		if _, err := os.Stat(langDir); os.IsNotExist(err) {
+			langDir = "./lang"
+		}
+		_ = i.LoadFromDir(langDir)
 
-	if lang := os.Getenv("MINIBOT_LANGUAGE"); lang != "" {
-		i.SetLang(lang)
-	}
-
-	i.initialized = true
+		if lang := os.Getenv("MINIBOT_LANGUAGE"); lang != "" {
+			i.SetLang(lang)
+		}
+	})
 }
 
 func (i *I18n) LoadFromDir(dir string) error {
+	loaded := make(map[string]map[string]any)
+
 	for _, lang := range i.availableLangs {
 		path := filepath.Join(dir, lang+".json")
 		data, err := os.ReadFile(path)
@@ -66,6 +69,13 @@ func (i *I18n) LoadFromDir(dir string) error {
 		if err := json.Unmarshal(data, &trans); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", path, err)
 		}
+		loaded[lang] = trans
+	}
+
+	// 先把檔案讀完再進鎖內寫入 map，避免在鎖內做 I/O
+	mu.Lock()
+	defer mu.Unlock()
+	for lang, trans := range loaded {
 		i.translations[lang] = trans
 	}
 	return nil
