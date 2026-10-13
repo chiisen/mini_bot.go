@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 )
+
 // Tool Result wraps string response and error state for LLM
 type ToolResult struct {
 	ForLLM  string

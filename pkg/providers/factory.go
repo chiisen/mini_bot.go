@@ -21,7 +21,7 @@ var defaultAPIBases = map[string]string{
 func NewProvider(modelCfg *config.ModelConfig) (LLMProvider, error) {
 	parts := strings.SplitN(modelCfg.Model, "/", 2)
 	vendor := "openai" // Default fallback
-	
+
 	if len(parts) == 2 {
 		vendor = strings.ToLower(parts[0])
 	}

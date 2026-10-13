@@ -69,7 +69,7 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 			}
 
 			userIDStr := strconv.FormatInt(update.Message.From.ID, 10)
-			
+
 			// T7-2: whitelist check
 			if len(t.AllowFrom) > 0 && !t.AllowFrom[userIDStr] {
 				logger.Warn("Ignored message from unauthorized user", "user_id", userIDStr)

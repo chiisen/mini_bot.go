@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build / vet / test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # 兩個平台都跑完再總結，避免其中一個失敗就取消另一個的結果
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # 版本以 go.mod 的 go 指令為準，避免與本機／映像檔版本脫節
+          go-version-file: go.mod
+          # 本專案零第三方依賴，沒有 module cache 需要快取，
+          # 關閉快取可避免 setup-go 找不到 go.sum 而報錯
+          cache: false
+
+      - name: gofmt
+        run: |
+          files=$(gofmt -l ./cmd ./pkg)
+          if [ -n "$files" ]; then
+            echo "::error::以下檔案未通過 gofmt，請執行 gofmt -w："
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race detector)
+        # -race 是必要的：pkg/i18n 曾出現過 fatal 等級的 data race，
+        # 一般 go test 完全看不到（詳見 issue #5）
+        run: go test -race ./...
+
+      - name: Cross-compile for Windows
+        # Makefile 的 release 目標包含 windows/amd64，這裡確保它不會腐化
+        if: runner.os == 'Linux'
+        run: GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/appname

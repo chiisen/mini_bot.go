@@ -9,10 +9,10 @@ import (
 
 // InboundMessage represents a standardized message arriving from any channel.
 type InboundMessage struct {
-	Channel    string // "telegram" | "cli"
-	ChatID     string // Used for routing reply back
-	Content    string // Message content
-	SessionKey string // Session key for conversation context
+	Channel    string      // "telegram" | "cli"
+	ChatID     string      // Used for routing reply back
+	Content    string      // Message content
+	SessionKey string      // Session key for conversation context
 	ReplyChan  chan string // Optional: channel to send synchronous replies directly back
 }
 
@@ -52,14 +52,14 @@ func (b *MessageBus) Start(ctx context.Context) {
 						// To keep it simple, we use ReplyChan or callbacks.
 					}
 				})
-				
+
 				if err != nil {
 					logger.Error("Agent Run failed", "error", err, "session", msg.SessionKey)
 					if msg.ReplyChan != nil {
 						msg.ReplyChan <- "Agent Encountered an Error: " + err.Error()
 					}
 				}
-				
+
 				// Signal completion if ReplyChan is provided
 				if msg.ReplyChan != nil {
 					close(msg.ReplyChan)
