@@ -105,7 +105,7 @@ func (m *Manager) Load(sessionKey string) ([]providers.Message, error) {
 // 檔案格式：
 //   - 檔案位置: {StorageDir}/{sessionKey}.json
 //   - 檔案格式: JSON，使用 json.MarshalIndent 進行美化格式化
-//   - 檔案權限: 0644 (所有者可讀寫， others 可讀)
+//   - 檔案權限: 0600 (只有所有者可讀寫)
 //
 // ============================================================================
 func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
@@ -121,8 +121,9 @@ func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
 	}
 
 	// 寫入檔案
-	// 權限 0644: rw-r--r-- (所有者可讀寫，其他使用者可讀)
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	// 權限 0600: rw------- (只有所有者可讀寫；會話內容是完整對話記錄，
+	// 可能含程式碼、金鑰與個資，不應讓同機其他使用者讀取)
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write session %s: %w", sessionKey, err)
 	}
 

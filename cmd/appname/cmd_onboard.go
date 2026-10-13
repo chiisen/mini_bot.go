@@ -101,9 +101,11 @@ func RunOnboard(args []string) error {
 	finalConfig := strings.Replace(defaultConfig, "YOUR_API_KEY_HERE", apiKey, 1)
 
 	// Create Config File
+	// 權限 0600：config.json 內含 API 金鑰，與 config.checkFilePermissions
+	// 的警告條件（mode & 0077 != 0）一致，不應讓同機其他使用者讀取
 	configPath := filepath.Join(configDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if err := os.WriteFile(configPath, []byte(finalConfig), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(finalConfig), 0600); err != nil {
 			return fmt.Errorf("failed to write %s: %w", configPath, err)
 		}
 		fmt.Printf("✅ Created config file at: %s\n", configPath)
