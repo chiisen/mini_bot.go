@@ -13,6 +13,11 @@ type Sandbox struct {
 	Workspace string
 }
 
+// NewSandbox 建立沙盒，並將 workspace 正規化為展開 symlink 後的實體路徑。
+//
+// workspace 必須與 CheckPath 的展開結果位於同一命名空間，否則只要 workspace
+// 路徑含有任何一段 symlink（例如 macOS 的 /var → private/var、或指向家目錄的
+// 連結），展開後的合法路徑就會因為字串前綴不符而被誤判為逃出沙盒。
 func NewSandbox(workspacePath string) (*Sandbox, error) {
 	absPath, err := filepath.Abs(workspacePath)
 	if err != nil {
@@ -24,8 +29,13 @@ func NewSandbox(workspacePath string) (*Sandbox, error) {
 		return nil, fmt.Errorf("failed to create workspace directory: %w", err)
 	}
 
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve workspace path %s: %w", absPath, err)
+	}
+
 	return &Sandbox{
-		Workspace: absPath,
+		Workspace: resolved,
 	}, nil
 }
 
@@ -51,14 +61,9 @@ func (s *Sandbox) CheckPath(inputPath string) (string, error) {
 		targetPath = filepath.Join(s.Workspace, inputPath)
 	}
 
-	absTargetPath, err := filepath.EvalSymlinks(targetPath)
+	absTargetPath, err := resolvePath(targetPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", fmt.Errorf("invalid path: %v", err)
-		}
-		absTargetPath = filepath.Clean(targetPath)
-	} else {
-		absTargetPath = filepath.Clean(absTargetPath)
+		return "", fmt.Errorf("invalid path: %v", err)
 	}
 
 	workspace := s.Workspace
@@ -76,4 +81,43 @@ func (s *Sandbox) CheckPath(inputPath string) (string, error) {
 	}
 
 	return absTargetPath, nil
+}
+
+// resolvePath 展開路徑中「已存在的最長前綴」的 symlink，再拼回尚未存在的部分。
+//
+// filepath.EvalSymlinks 對不存在的目標會回 ENOENT；此時若直接退回 filepath.Clean，
+// 等於對不存在的目標跳過 symlink 展開，讓 write_file 這類建立檔案的操作可以穿過
+// workspace/leak -> <外部目錄> 的連結寫到沙盒外。因此改為逐層往上找出第一個
+// 存在的祖先展開後再接回剩餘片段，讓「已存在」與「不存在」的目標走同一套判斷。
+func resolvePath(path string) (string, error) {
+	clean := filepath.Clean(path)
+
+	resolved, err := filepath.EvalSymlinks(clean)
+	if err == nil {
+		return resolved, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	remainder := []string{filepath.Base(clean)}
+	current := filepath.Dir(clean)
+
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			return filepath.Join(append([]string{resolved}, remainder...)...), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			// 連根目錄都不存在（理論上不會發生），退回字面路徑
+			return clean, nil
+		}
+		remainder = append([]string{filepath.Base(current)}, remainder...)
+		current = parent
+	}
 }
