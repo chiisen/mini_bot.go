@@ -100,3 +100,39 @@ func TestMemoryManager_Append_Multiple(t *testing.T) {
 		t.Errorf("expected:\n%s\ngot:\n%s", expected, string(data))
 	}
 }
+
+// TestMemoryManager_Append_StoresContentVerbatim 確保記憶內容原樣落盤。
+// Append 曾誤用 SanitizeInput，導致寫入的記憶被包成 ```user-input code fence，
+// 且 {} [] <script 等字元被轉義成 HTML entity，模型讀到的記憶因此是破損的。
+func TestMemoryManager_Append_StoresContentVerbatim(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"JSON 與方括號", `Use {"key": ["value1", "value2"]} as the payload`},
+		{"Markdown code fence", "```go\nfmt.Println(\"hi\")\n```"},
+		{"HTML 標籤", "<script>alert(1)</script> 不應被轉義"},
+		{"中文與 emoji", "使用者偏好：回覆用繁體中文 🚀"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			memoryPath := filepath.Join(t.TempDir(), "MEMORY.md")
+			m := NewMemoryManager(memoryPath)
+
+			if err := m.Append(tc.content); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			data, err := os.ReadFile(memoryPath)
+			if err != nil {
+				t.Fatalf("failed to read file: %v", err)
+			}
+
+			expected := tc.content + "\n"
+			if string(data) != expected {
+				t.Errorf("expected '%s', got '%s'", expected, string(data))
+			}
+		})
+	}
+}
