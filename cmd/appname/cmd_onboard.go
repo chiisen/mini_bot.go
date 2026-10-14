@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/chiisen/mini_bot/pkg/config"
 )
 
 const defaultIdentity = `# 名稱與基本設定
@@ -108,6 +110,13 @@ func RunOnboard(args []string) error {
 		fmt.Printf("✅ Created config file at: %s\n", configPath)
 	} else {
 		fmt.Printf("ℹ️ Config file already exists at: %s, skipped.\n", configPath)
+
+		// onboard 只會建立缺少的檔案，因此升級後留下的舊設定檔不會被動到；
+		// 至少要在這裡告知使用者它已經無法使用，而不是等到 app agent 失敗
+		if err := validateConfigFile(configPath); err != nil {
+			fmt.Printf("⚠️  既有的設定檔目前無法使用：%v\n", err)
+			fmt.Println("💡 請參考 config/config.example.json 更新：供應商要放在 providers 區塊，model 使用 vendor/model 格式")
+		}
 	}
 
 	// Create Workspace Files
@@ -129,6 +138,24 @@ func RunOnboard(args []string) error {
 	}
 
 	fmt.Println("🚀 Onboard successful! You can now use 'app agent' to test the assistant.")
+	return nil
+}
+
+// validateConfigFile 檢查既有設定檔能否被現在的程式使用。
+//
+// 範本曾在未同步 schema 的情況下產生無法使用的設定（見 issue #23），而 onboard
+// 不會覆蓋既有檔案，因此至少要在這裡讓使用者知道問題出在哪，而不是等到
+// `app agent` 失敗。
+func validateConfigFile(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+
+	if _, err := cfg.FindModel(cfg.Agents.Defaults.Model); err != nil {
+		return fmt.Errorf("model 無法解析（%s）：%w", cfg.Agents.Defaults.Model, err)
+	}
+
 	return nil
 }
 

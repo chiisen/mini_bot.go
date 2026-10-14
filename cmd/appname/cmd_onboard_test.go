@@ -62,6 +62,46 @@ func TestDefaultConfig_IsLoadableAndResolvable(t *testing.T) {
 	}
 }
 
+// TestValidateConfigFile 驗證既有設定檔的可用性檢查。
+//
+// onboard 不會覆蓋既有檔案，因此升級後留下的舊設定檔需要被檢查出來，否則使用者
+// 只會看到 app agent 失敗。
+func TestValidateConfigFile(t *testing.T) {
+	t.Run("現行範本可通過", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte(defaultConfig), 0600); err != nil {
+			t.Fatalf("failed to write: %v", err)
+		}
+		if err := validateConfigFile(path); err != nil {
+			t.Errorf("範本應該可用，卻回報：%v", err)
+		}
+	})
+
+	t.Run("舊版 schema 會被判定為不可用", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "config.json")
+		legacy := `{
+			"agents": {"defaults": {"model": "gpt4", "max_tokens": 8192}},
+			"model_list": [{"model_name": "gpt4", "model": "openai/gpt-4", "api_key": "k"}]
+		}`
+		if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
+			t.Fatalf("failed to write: %v", err)
+		}
+		if err := validateConfigFile(path); err == nil {
+			t.Error("舊版 schema 應該被判定為不可用")
+		}
+	})
+
+	t.Run("內容不是合法 JSON", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte("{ not json"), 0600); err != nil {
+			t.Fatalf("failed to write: %v", err)
+		}
+		if err := validateConfigFile(path); err == nil {
+			t.Error("無法解析的設定檔應該回報錯誤")
+		}
+	})
+}
+
 // TestIsPlaceholderToken 驗證範本佔位字串會被辨識，不會拿去呼叫 Telegram API。
 func TestIsPlaceholderToken(t *testing.T) {
 	cases := []struct {
