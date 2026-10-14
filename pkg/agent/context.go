@@ -5,7 +5,7 @@ package agent
 // ============================================================================
 // 本檔案包含兩個主要功能：
 //   1. Builder: 根據工作區的設定檔建構系統提示詞
-//   2. SanitizeInput: 對使用者輸入進行安全過濾，防止注入攻擊
+//   2. SanitizeInput: 準備送進對話的使用者輸入
 //
 // 系統提示詞的組成部分：
 //   - IDENTITY.md     : AI 的身份定義
@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/chiisen/mini_bot/pkg/i18n"
 	"github.com/chiisen/mini_bot/pkg/providers"
@@ -30,12 +32,17 @@ import (
 // 常數定義
 // ============================================================================
 
-// MaxInputLength 定義使用者輸入的最大長度
-// 超過這個長度的輸入會被截斷
+// MaxInputLength 定義使用者輸入的最大長度，以 rune（字元）為單位，
+// 避免截斷時把中文或 emoji 切成無效的 UTF-8。
 const MaxInputLength = 10000
 
-// injectionPatterns 是用於檢測提示詞注入攻擊的關鍵字列表
-// 這些模式常被用於嘗試绕过 AI 的安全限制
+// inputFence 是包住使用者輸入的界線。
+const inputFence = "```"
+
+// injectionPatterns 是常見的提示詞注入字串，用於偵測與記錄。
+//
+// 這些樣式只用於回報（見 ContainsInjectionPatterns），不會改寫使用者內容：
+// 以字串比對擋注入的實際防護效果有限，而改寫內容會讓模型看到不存在的文字。
 var injectionPatterns = []string{
 	"ignore previous instructions",    // 忽略之前的指令
 	"ignore all previous instruction", // 忽略所有之前的指令
@@ -52,79 +59,79 @@ var injectionPatterns = []string{
 	"human:",                          // 人類:
 }
 
+// backtickRun 比對足以關閉界線的連續反引號
+var backtickRun = regexp.MustCompile("`{3,}")
+
 // ============================================================================
-// SanitizeInput: 輸入安全處理函數
+// SanitizeInput: 使用者輸入處理
 // ============================================================================
-// 這個函數對使用者輸入進行多層安全處理：
-//  1. 長度截斷 - 防止過長輸入導致的問題
-//  2. 注入攻擊檢測 - 識別並標記常見的提示詞注入模式
-//  3. 腳本標籤轉義 - 防止 XSS 攻擊
-//  4. 模板變量轉義 - 防止模板注入
-//  5. 方括號轉義 - 防止 Markdown 注入
-//  6. 格式包裝 - 用 Markdown 程式碼塊包裝輸入
+// 設計原則：**不修改使用者輸入的內容**。
+//
+// 先前的版本會把 {} [] <script {{ }} 轉義成 HTML entity，並就地把偵測到的注入
+// 字串換成 [FILTERED ...]。但這個助理的主要用途正是處理程式碼與 JSON，改寫內容
+// 會讓模型讀到不存在的文字，對防護卻幾乎沒有幫助（換句話說就繞過了）。
+//
+// 現在只做三件事：
+//  1. 以 rune 為單位截斷過長輸入，不會切斷中文或 emoji
+//  2. 中和足以關閉界線的連續反引號，避免使用者自行收尾後在界線外注入指示
+//  3. 用界線包住輸入，讓模型能區分「使用者內容」與「系統指示」
 //
 // 參數：
-//   - input: 原始使用者輸入字串
+//   - input: 原始使用者輸入
 //
 // 回傳：
-//   - 經過安全處理後的字串
+//   - 包上界線、可直接送給模型的字串
 //
 // ============================================================================
 func SanitizeInput(input string) string {
-	// ---------------------------------------------------------------------
-	// 步驟 1: 長度截斷
-	// ---------------------------------------------------------------------
-	// 如果輸入超過最大長度，則截斷多餘部分
-	// 這可以防止過長輸入導致的資源耗盡
-	if len(input) > MaxInputLength {
-		input = input[:MaxInputLength]
+	input = truncateRunes(input, MaxInputLength)
+	input = neutralizeFence(input)
+
+	return inputFence + "user-input\n" + input + "\n" + inputFence
+}
+
+// truncateRunes 以 rune 為單位截斷字串，不會產生無效的 UTF-8。
+func truncateRunes(s string, max int) string {
+	if utf8.RuneCountInString(s) <= max {
+		return s
 	}
 
-	// ---------------------------------------------------------------------
-	// 步驟 2: 提示詞注入檢測
-	// ---------------------------------------------------------------------
-	// 將輸入轉為小寫以便進行模式匹配
-	// 檢查是否包含常見的提示詞注入關鍵字
+	count := 0
+	for i := range s {
+		if count == max {
+			return s[:i]
+		}
+		count++
+	}
+	return s
+}
+
+// neutralizeFence 中和輸入中足以關閉界線的連續反引號。
+//
+// 界線是這個防護的主體：使用者只要能寫出 ``` 就能提前收尾，讓後續文字落在
+// 界線之外而看起來像系統指示。這裡只改寫三連以上的反引號（一般程式碼裡的單一
+// 或雙反引號不受影響，可讀性保留），長度也維持不變。
+func neutralizeFence(s string) string {
+	return backtickRun.ReplaceAllStringFunc(s, func(run string) string {
+		return strings.Repeat("｀", utf8.RuneCountInString(run))
+	})
+}
+
+// ContainsInjectionPatterns 回報輸入是否含常見的提示注入字串。
+//
+// 這是**偵測**而非處理。先前版本會就地把符合的字串換成 [FILTERED ...]，既改寫了
+// 使用者原意，也因為大小寫不一致（用轉小寫的副本比對、卻用原字串取代）而經常
+// 實際上沒有替換成功。偵測結果交由呼叫端決定是否記錄。
+func ContainsInjectionPatterns(input string) bool {
 	lower := strings.ToLower(input)
+
 	for _, pattern := range injectionPatterns {
 		if strings.Contains(lower, pattern) {
-			// 將檢測到的注入模式替換為警告標記
-			// 例如: "ignore previous" -> "[FILTERED IGNORE PREVIOUS]"
-			marker := fmt.Sprintf("[FILTERED %s]", strings.ToUpper(pattern))
-			input = strings.ReplaceAll(input, pattern, marker)
+			return true
 		}
 	}
 
-	// ---------------------------------------------------------------------
-	// 步驟 3: 腳本標籤轉義 (防止 XSS)
-	// ---------------------------------------------------------------------
-	// 將 HTML 腳本標籤轉義，防止跨站腳本攻擊
-	input = strings.ReplaceAll(input, "<script", "&lt;script")
-	input = strings.ReplaceAll(input, "</script>", "&lt;/script>")
-
-	// ---------------------------------------------------------------------
-	// 步驟 4: 模板變量轉義 (防止模板注入)
-	// ---------------------------------------------------------------------
-	// 轉義 Handlebars/Jinja 等模板引擎的變量語法
-	input = strings.ReplaceAll(input, "{{", "&lbrace;&lbrace;")
-	input = strings.ReplaceAll(input, "}}", "&rbrace;&rbrace;")
-	input = strings.ReplaceAll(input, "{", "&#123;")
-	input = strings.ReplaceAll(input, "}", "&#125;")
-
-	// ---------------------------------------------------------------------
-	// 步驟 5: 方括號轉義 (防止 Markdown 注入)
-	// ---------------------------------------------------------------------
-	// 方括號在 Markdown 中有特殊意義 (連結、圖片等)
-	// 轉義它們以確保輸入被當作純文本處理
-	input = strings.ReplaceAll(input, "[", "&#91;")
-	input = strings.ReplaceAll(input, "]", "&#93;")
-
-	// ---------------------------------------------------------------------
-	// 步驟 6: 格式包裝
-	// ---------------------------------------------------------------------
-	// 用 Markdown 程式碼塊包裝處理後的輸入
-	// 這有助於 AI 區分使用者輸入和系統指令
-	return "```user-input\n" + input + "\n```"
+	return false
 }
 
 // ============================================================================
@@ -222,8 +229,8 @@ func (b *Builder) Build(tools []providers.ToolDefinition) (string, error) {
 		toolDesc.WriteString("You have access to the following tools:\n")
 
 		// 遍歷所有工具，生成工具列表
-		for _, t := range tools {
-			toolDesc.WriteString(fmt.Sprintf("- %s: %s\n", t.Function.Name, t.Function.Description))
+		for _, tool := range tools {
+			toolDesc.WriteString(fmt.Sprintf("- %s: %s\n", tool.Function.Name, tool.Function.Description))
 		}
 
 		// 添加工具使用說明

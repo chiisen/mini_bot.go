@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chiisen/mini_bot/pkg/logger"
 	"github.com/chiisen/mini_bot/pkg/providers"
 )
 
@@ -98,7 +99,10 @@ func (a *AgentInstance) Run(
 	messages = append(messages, history...)
 
 	// 加入新的使用者輸入
-	// 注意：輸入會經過 SanitizeInput 函數進行安全處理
+	// 注意：SanitizeInput 只包上界線、不改寫內容；注入樣式的偵測僅用於留下紀錄
+	if ContainsInjectionPatterns(userInput) {
+		logger.Warn("input matched a prompt injection pattern; content left unmodified", "session", sessionKey)
+	}
 	messages = append(messages, providers.Message{
 		Role:    "user",
 		Content: SanitizeInput(userInput),
