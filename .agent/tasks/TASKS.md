@@ -35,6 +35,10 @@
 | #9 | session 與 config 權限改 0600；LLM 請求加入重試與可配置逾時；Dockerfile 版本與容器內語言檔 |
 | #5 | 建立 CI 與 `AgentInstance.Run()` 測試（原本是 `t.Skip`） |
 | #15 | `session.Save` 在目錄不存在時失敗（自訂 workspace 的使用者每次對話都在結尾噴錯） |
+| #24 | `app gateway` 在沒有啟用任何頻道時立即結束，且訊息誤導（onboard 範本預設不啟用 Telegram，新使用者第一次就會遇到） |
+| #25 | Telegram 的長輪詢 offset 只存在記憶體，重啟後可能重複處理訊息 |
+| #26 | `pkg/bus` 被單一未排空的回覆通道卡住，導致所有頻道的訊息停止處理 |
+| — | i18n 語言檔尋找路徑統一（Docker 只需一份語言檔）；日誌遮蔽樣式順序錯誤導致 Telegram bot token 外洩一半；`status` 的語言來源與 Telegram 狀態顯示不準確 |
 
 ### 待辦
 
@@ -46,9 +50,8 @@
 
 ### 已發現但尚未開票
 
-- `pkg/i18n` 的惰性初始化只看當前工作目錄，`pkg/config.Load` 則以執行檔所在目錄為優先。兩條尋找路徑不一致，導致 `docker run -w <其他目錄> ... version` 會顯示原始 i18n key。
-- `.coderabbit.yaml` 已設定，但 PR 上沒有出現 CodeRabbit 的評論，可能未安裝 App。
-- 第二輪審查的候選：`pkg/bus` 的 backpressure、`pkg/channels/telegram.go` 的 update offset 未持久化、`app gateway` 在 Telegram 未啟用時的行為。
+- **提示注入的外部文字面**：偵測目前套用在使用者自己的輸入上（對個人助理威脅有限），而真正外部可控的文字——工具結果與 `web_search` 的網頁內容——完全沒有處理。需先決定是否要做。
+- `.coderabbit.yaml` 已設定，但 PR 上沒有出現 CodeRabbit 的評論，可能未安裝 App；2026-10-14 起改為直接在 `main` 開發，此設定已無用處。
 
 ---
 
