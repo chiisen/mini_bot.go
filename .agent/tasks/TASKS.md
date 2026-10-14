@@ -42,13 +42,13 @@
 | — | 提示注入防護補上外部文字面：工具結果以 `tool-output` 界線界定，系統提示詞明講工具輸出不可信 |
 | — | 寫入記憶或人格檔時會告知使用者（`ToolResult.Notice`）；`write_file`/`append_file` 會自動建立上層目錄；`web_search` 的 entity 解碼與解析可測試化；`onboard` 會檢查既有設定檔是否還能用 |
 | #20 | `Compress` 改用 token 預算（字元估算）取代固定訊息數，`maxTokens` 終於生效 |
+| #21 | provider 加入 SSE 串流（選擇性介面 `StreamingProvider`）與 CLI 逐步輸出；不支援串流的 provider 行為不變 |
 
 ### 待辦
 
 | Issue | 優先 | 內容 |
 |-------|------|------|
-| #21 | P3 | 評估 streaming 回應支援（已決策先不做；真要做第一版只做 CLI，且會動到 `LLMProvider` 介面） |
-
+| #27 | P3 | Telegram 逐步輸出（`editMessageText` 與速率控制）；provider 與 CLI 的串流已完成 |
 ### 已發現但尚未開票
 
 - **`onboard` 的 API Key 輸入沒有關閉終端回顯**：金鑰會直接顯示在畫面上（也會留在終端 scrollback）。要修得乾淨需要處理 terminal echo（各平台 syscall 不同，且會用到非標準庫），因此先記錄。可接受的替代做法是引導使用者改用環境變數。

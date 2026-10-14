@@ -27,7 +27,7 @@ import (
 )
 
 // ============================================================================
-// Run: Agent 主執行函數
+// Run / RunStream: Agent 主執行函數
 // ============================================================================
 // 這是 Agent 的核心方法，執行完整的 LLM + 工具呼叫迴圈。
 //
@@ -35,7 +35,9 @@ import (
 //   - ctx: Go 的上下文物件，用於控制請求的取消和超時
 //   - sessionKey: 對話會話的唯一識別鍵，用於載入/儲存對話歷史
 //   - userInput: 使用者輸入的訊息
-//   - onReply: 回調函數，當 AI 回覆訊息時會被呼叫
+//   - onReply: 回調函數，當 AI 產生完整訊息（回覆、工具通知、Notice）時被呼叫
+//   - onDelta: 僅 RunStream 提供；provider 支援串流時，文字片段會經由它送出，
+//     該則回覆就不會再透過 onReply 重複輸出
 //
 // 回傳值：
 //   - error: 如果執行過程中發生錯誤，回傳錯誤訊息
@@ -57,6 +59,30 @@ func (a *AgentInstance) Run(
 	sessionKey string,
 	userInput string,
 	onReply func(msg string),
+) error {
+	return a.run(ctx, sessionKey, userInput, onReply, nil)
+}
+
+// RunStream 與 Run 相同，但會請 provider 逐步輸出（若它支援）。
+//
+// 不支援串流的 provider（例如測試替身）行為與 Run 完全相同，因此呼叫端可以安心
+// 一律使用 RunStream。
+func (a *AgentInstance) RunStream(
+	ctx context.Context,
+	sessionKey string,
+	userInput string,
+	onReply func(msg string),
+	onDelta func(text string),
+) error {
+	return a.run(ctx, sessionKey, userInput, onReply, onDelta)
+}
+
+func (a *AgentInstance) run(
+	ctx context.Context,
+	sessionKey string,
+	userInput string,
+	onReply func(msg string),
+	onDelta func(text string),
 ) error {
 
 	// -------------------------------------------------------------------------
@@ -147,10 +173,30 @@ func (a *AgentInstance) Run(
 		//   - toolDefs: 工具定義列表
 		//   - modelName: 模型名稱
 		//   - options: 模型選項 (溫度、最大 token 數等)
-		response, err := a.Provider.Chat(ctx, messages, toolDefs, modelName, map[string]any{
+		options := map[string]any{
 			"temperature": a.Config.Agents.Defaults.Temperature,
 			"max_tokens":  a.Config.Agents.Defaults.MaxTokens,
-		})
+		}
+
+		// provider 支援串流且呼叫端要求逐步輸出時走 ChatStream；否則走 Chat。
+		// 注意：ChatStream 失敗時不再退回 Chat，否則會重複送出同一個請求。
+		var (
+			response *providers.LLMResponse
+			err      error
+			streamed bool
+		)
+
+		if onDelta != nil {
+			if sp, ok := a.Provider.(providers.StreamingProvider); ok {
+				response, err = sp.ChatStream(ctx, messages, toolDefs, modelName, options, func(text string) {
+					streamed = true
+					onDelta(text)
+				})
+			}
+		}
+		if response == nil && err == nil {
+			response, err = a.Provider.Chat(ctx, messages, toolDefs, modelName, options)
+		}
 
 		// 錯誤處理
 		if err != nil {
@@ -168,7 +214,10 @@ func (a *AgentInstance) Run(
 
 		// 如果 AI 回覆了文字內容，透過回調函數通知呼叫者
 		if response.Content != "" {
-			onReply(response.Content)
+			// 串流時片段已經經由 onDelta 送出，不要再重複輸出整段內容
+			if !streamed {
+				onReply(response.Content)
+			}
 
 			// 如果沒有工具呼叫，則退出迴圈 (獲得最終答案)
 			// 注意：有些 LLM 可能同時輸出文字和工具呼叫

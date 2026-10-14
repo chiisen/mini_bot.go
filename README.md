@@ -311,7 +311,7 @@ docker run -it --rm -v ~/.minibot.go:/root/.minibot.go minibot gateway
 
 - **上下文壓縮以 token 預算為準**：以字元估算 token（CJK 等寬字元約 1 字元 1 token、其餘約 4 字元 1 token），超過 `agents.defaults.maxTokens` 時保留系統提示詞與最近的訊息，裁切點會對齊工具呼叫群組。估算是粗略的近似（誤差約兩成），不是計費依據；真正的上下文上限取決於供應商與模型，無法從設定得知。
 - **`exec` 不是作業系統層級的隔離**：細節與容器替代方案見上方「安全性與 Sandbox」。
-- **只有一種 provider 實作**（OpenAI 相容的 `/chat/completions`），且沒有 streaming 回應，長回覆要等整段生成完才輸出（見 issue #21）。
+- **只有一種 provider 實作**（OpenAI 相容的 `/chat/completions`）。CLI 支援逐字輸出（SSE 串流），Telegram 仍在收到完整回覆後才送出——逐步輸出需要 `editMessageText` 與速率控制（見 issue #27）。
 - **長期記憶沒有大小上限**：`workspace/memory/MEMORY.md` 會持續累積，而且整份內容都會放進每一次的系統提示詞。
 - **對話歷史沒有輪替機制**：`workspace/sessions/*.json` 會持續成長，只有送給模型前才壓縮。
 

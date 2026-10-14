@@ -123,11 +123,7 @@ func RunAgent(args []string) error {
 	// 所有的 CLI 互動都使用相同的會話鍵 "cli_default"
 	sessionKey := "cli_default"
 
-	// 定義回調函數，用於處理 Agent 的回覆
-	// 當 Agent 產生回覆時，這個函數會被調用
-	printReply := func(msg string) {
-		fmt.Printf("Agent: %s\n", msg)
-	}
+	printer := newStreamPrinter(os.Stdout)
 
 	// 根據模式執行
 	if isSingleMessage {
@@ -136,7 +132,9 @@ func RunAgent(args []string) error {
 		// -----------------------------------------------------------------
 		// 執行一次對話並返回結果
 		// 適用於腳本化使用場景
-		return instance.Run(ctx, sessionKey, singleMessageContent, printReply)
+		err := instance.RunStream(ctx, sessionKey, singleMessageContent, printer.Reply, printer.Delta)
+		printer.Flush()
+		return err
 	}
 
 	// -----------------------------------------------------------------
@@ -190,11 +188,14 @@ func RunAgent(args []string) error {
 		}
 
 		// 執行對話
-		// 呼叫 Agent 實例的 Run 方法處理輸入
-		if err := instance.Run(ctx, sessionKey, input, printReply); err != nil {
+		// 呼叫 Agent 實例處理輸入（provider 支援串流時會即時輸出片段）
+		if err := instance.RunStream(ctx, sessionKey, input, printer.Reply, printer.Delta); err != nil {
 			// 發生錯誤時顯示錯誤訊息，但繼續迴圈
+			printer.Flush()
 			fmt.Printf(t.T("cli.error")+"\n", err)
+			continue
 		}
+		printer.Flush()
 	}
 
 	return nil

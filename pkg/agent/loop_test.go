@@ -505,6 +505,96 @@ func TestAgent_Run_EmitsToolNotice(t *testing.T) {
 	}
 }
 
+// streamingProvider 是支援串流的測試替身。
+type streamingProvider struct {
+	deltas []string
+}
+
+func (p *streamingProvider) Chat(
+	ctx context.Context,
+	messages []providers.Message,
+	tools []providers.ToolDefinition,
+	model string,
+	options map[string]any,
+) (*providers.LLMResponse, error) {
+	return &providers.LLMResponse{Content: strings.Join(p.deltas, "")}, nil
+}
+
+func (p *streamingProvider) GetDefaultModel() string { return "fake-streaming" }
+
+func (p *streamingProvider) ChatStream(
+	ctx context.Context,
+	messages []providers.Message,
+	tools []providers.ToolDefinition,
+	model string,
+	options map[string]any,
+	onDelta func(string),
+) (*providers.LLMResponse, error) {
+	var sb strings.Builder
+	for _, delta := range p.deltas {
+		sb.WriteString(delta)
+		onDelta(delta)
+	}
+	return &providers.LLMResponse{Content: sb.String()}, nil
+}
+
+// TestAgent_RunStream_EmitsDeltasWithoutDuplicatingReply 驗證串流的片段經由 onDelta
+// 輸出，同一則內容不會再透過 onReply 重複印一次。
+func TestAgent_RunStream_EmitsDeltasWithoutDuplicatingReply(t *testing.T) {
+	loadTestTranslations(t)
+
+	provider := &streamingProvider{deltas: []string{"Hel", "lo"}}
+	agent := newTestAgent(t, provider, tools.NewRegistry(), 5)
+
+	var replies, deltas replyCollector
+	if err := agent.RunStream(context.Background(), "sess_stream", "hi", replies.add, deltas.add); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := strings.Join(deltas.msgs, ""); got != "Hello" {
+		t.Errorf("expected deltas to accumulate to Hello, got %q", got)
+	}
+	if len(deltas.msgs) != 2 {
+		t.Errorf("expected 2 deltas, got %d: %v", len(deltas.msgs), deltas.msgs)
+	}
+	if replies.has("Hello") {
+		t.Errorf("串流過的內容不應再經由 onReply 重複輸出，實際收到 %q", replies.joined())
+	}
+
+	// 會話仍應保存完整回覆
+	history, err := agent.Sessions.Load("sess_stream")
+	if err != nil {
+		t.Fatalf("failed to load session: %v", err)
+	}
+	if len(history) != 2 || history[1].Content != "Hello" {
+		t.Errorf("會話應保存完整回覆，得到 %+v", history)
+	}
+}
+
+// TestAgent_RunStream_FallsBackForNonStreamingProvider 驗證 provider 不支援串流時，
+// RunStream 的行為與 Run 相同（不會呼叫 onDelta）。
+func TestAgent_RunStream_FallsBackForNonStreamingProvider(t *testing.T) {
+	loadTestTranslations(t)
+
+	provider := &fakeProvider{responses: []providers.LLMResponse{{Content: "Hello"}}}
+	agent := newTestAgent(t, provider, tools.NewRegistry(), 5)
+
+	var replies, deltas replyCollector
+	if err := agent.RunStream(context.Background(), "sess_fallback", "hi", replies.add, deltas.add); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(deltas.msgs) != 0 {
+		t.Errorf("不支援串流時不應有 delta，得到 %v", deltas.msgs)
+	}
+	if !replies.has("Hello") {
+		t.Errorf("應透過 onReply 輸出完整回覆，實際收到 %q", replies.joined())
+	}
+	if len(provider.calls) != 1 {
+		t.Errorf("expected exactly 1 LLM call, got %d", len(provider.calls))
+	}
+}
+
 // ============================================================================
 // 既有測試
 // ============================================================================

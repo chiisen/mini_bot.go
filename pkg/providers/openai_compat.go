@@ -117,21 +117,7 @@ func (p *OpenAICompatProvider) Chat(
 
 	url := p.chatCompletionsURL()
 
-	payload := map[string]any{
-		"model":    model,
-		"messages": messages,
-	}
-
-	if len(tools) > 0 {
-		payload["tools"] = tools
-	}
-
-	// Apply options (temperature, max_tokens, etc.)
-	for k, v := range options {
-		payload[k] = v
-	}
-
-	jsonData, err := json.Marshal(payload)
+	jsonData, err := json.Marshal(buildPayload(messages, tools, model, options))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -171,6 +157,25 @@ func (p *OpenAICompatProvider) Chat(
 	}
 
 	return nil, lastErr
+}
+
+// buildPayload 組裝 chat completions 的請求內容，串流與非串流共用。
+func buildPayload(messages []Message, tools []ToolDefinition, model string, options map[string]any) map[string]any {
+	payload := map[string]any{
+		"model":    model,
+		"messages": messages,
+	}
+
+	if len(tools) > 0 {
+		payload["tools"] = tools
+	}
+
+	// Apply options (temperature, max_tokens, etc.)
+	for k, v := range options {
+		payload[k] = v
+	}
+
+	return payload
 }
 
 // chatCompletionsURL 組合出 chat completions 端點，並避免重複附加路徑。
