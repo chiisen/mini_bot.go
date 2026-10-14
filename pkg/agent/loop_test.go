@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -365,6 +366,70 @@ func TestAgent_Run_ContextCancelled(t *testing.T) {
 	}
 	if len(provider.calls) != 0 {
 		t.Errorf("expected no LLM call after cancellation, got %d", len(provider.calls))
+	}
+}
+
+// TestAgent_Run_CompressedHistoryKeepsToolPairs 驗證載入過長歷史後，傳給 LLM 的
+// 序列不會出現孤兒 tool 訊息。
+//
+// Compress 先前以固定則數裁切，會切在工具呼叫群組中間；OpenAI 相容 API 對沒有
+// 對應 assistant(tool_calls) 的 tool 訊息直接回 400，長對話因此無法繼續。
+// 這裡刻意用不同長度的歷史，讓裁切點落在不同的訊息型別上。
+func TestAgent_Run_CompressedHistoryKeepsToolPairs(t *testing.T) {
+	loadTestTranslations(t)
+
+	for _, pad := range []int{0, 1, 2, 3} {
+		t.Run(fmt.Sprintf("pad=%d", pad), func(t *testing.T) {
+			provider := &fakeProvider{responses: []providers.LLMResponse{{Content: "ok"}}}
+			agent := newTestAgent(t, provider, tools.NewRegistry(), 5)
+
+			history := []providers.Message{{Role: "user", Content: "start"}}
+			for i := 0; i < pad; i++ {
+				history = append(history, providers.Message{Role: "assistant", Content: "padding"})
+			}
+			for i := 1; i <= 6; i++ {
+				id := fmt.Sprintf("call_%d", i)
+				history = append(history,
+					providers.Message{
+						Role:      "assistant",
+						ToolCalls: []providers.ToolCall{{ID: id, Type: "function"}},
+					},
+					providers.Message{Role: "tool", ToolCallID: id, Content: "result"},
+				)
+			}
+
+			if err := agent.Sessions.Save("sess_compress", history); err != nil {
+				t.Fatalf("failed to seed session history: %v", err)
+			}
+
+			if err := agent.Run(context.Background(), "sess_compress", "next", func(string) {}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			sent := provider.calls[0].Messages
+			if sent[0].Role != "system" {
+				t.Errorf("expected the system prompt first, got %s", sent[0].Role)
+			}
+			// 這組歷史長度必須真的觸發壓縮，否則就測不到裁切邊界
+			if len(sent) >= len(history)+2 {
+				t.Fatalf("測試前提不成立：資料量未觸發壓縮（sent=%d, history=%d）", len(sent), len(history))
+			}
+
+			pending := make(map[string]bool)
+			for i, msg := range sent {
+				switch msg.Role {
+				case "assistant":
+					for _, call := range msg.ToolCalls {
+						pending[call.ID] = true
+					}
+				case "tool":
+					if !pending[msg.ToolCallID] {
+						t.Fatalf("index %d: 送給 LLM 的序列含孤兒 tool 訊息 %q（實際 API 會回 400）", i, msg.ToolCallID)
+					}
+					delete(pending, msg.ToolCallID)
+				}
+			}
+		})
 	}
 }
 
