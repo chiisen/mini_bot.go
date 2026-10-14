@@ -299,6 +299,8 @@ docker build -t minibot .
 docker run -it --rm -v ~/.minibot.go:/root/.minibot.go minibot gateway
 ```
 
+**工具輸出也會被當成資料界定。** `web_search` 抓到的網頁、讀到的檔案內容、`exec` 的輸出都屬於**外部可控**的文字，可能含有看起來像指令的句子。它們會以 `tool-output` 區塊包住才送進對話，而系統提示詞明確要求模型不得把區塊內的句子當成指令、也不得視為使用者或系統的要求。這能降低被騙的機率，但**無法保證**——模型是否照做無法用單元測試證明，而且這是所有 LLM 應用共通的限制。
+
 對話歷史以 `0600` 權限保存在 `workspace/sessions/`，`config.json` 由 `onboard` 建立時同樣是 `0600`。 🛡️
 
 ---

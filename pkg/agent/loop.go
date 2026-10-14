@@ -191,7 +191,7 @@ func (a *AgentInstance) Run(
 					// 如果解析失敗，將錯誤訊息傳回給 LLM
 					messages = append(messages, providers.Message{
 						Role:       "tool",
-						Content:    fmt.Sprintf("Failed to parse tool arguments: %v", err),
+						Content:    WrapToolOutput(call.Function.Name, fmt.Sprintf("Failed to parse tool arguments: %v", err)),
 						ToolCallID: call.ID,
 					})
 					continue // 繼續處理下一個工具呼叫
@@ -204,9 +204,10 @@ func (a *AgentInstance) Run(
 
 				// 將工具執行結果傳回給 LLM
 				// 這樣 LLM 可以根據結果產生最終回覆
+				// 注意：工具輸出是外部可控的文字，會以 tool-output 界線界定後才送出
 				messages = append(messages, providers.Message{
 					Role:       "tool",
-					Content:    result.ForLLM,
+					Content:    WrapToolOutput(call.Function.Name, result.ForLLM),
 					ToolCallID: call.ID,
 				})
 			}
