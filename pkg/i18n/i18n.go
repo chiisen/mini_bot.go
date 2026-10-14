@@ -37,6 +37,34 @@ func GetInstance() *I18n {
 	return instance
 }
 
+// langDirCandidates 回傳載入語言檔的候選目錄，依優先序：
+//
+//  1. 執行檔所在目錄——與 pkg/config 的尋找邏輯一致，讓「執行檔旁放著 lang/」
+//     的部署方式不受當前工作目錄影響
+//  2. 當前工作目錄
+//
+// 先前只檢查工作目錄，因此換個工作目錄執行（例如 `docker run -w /tmp ...`）就會
+// 找不到語言檔，所有 i18n 字串退化成原始 key。
+func langDirCandidates() []string {
+	var dirs []string
+
+	if exe, err := os.Executable(); err == nil {
+		dirs = append(dirs, filepath.Join(filepath.Dir(exe), "lang"))
+	}
+	if execDir != "" {
+		dirs = append(dirs, filepath.Join(execDir, "lang"))
+	}
+
+	return dirs
+}
+
+// hasTranslations 回報是否已載入任何語言檔。
+func (i *I18n) hasTranslations() bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return len(i.translations) > 0
+}
+
 // ensureInitialized 只在第一次取用翻譯時載入語言檔。
 //
 // 必須是執行緒安全的：gateway 模式下會有多個 goroutine 同時呼叫 T()，
@@ -44,11 +72,12 @@ func GetInstance() *I18n {
 // fatal error: concurrent map writes 終止程式。
 func (i *I18n) ensureInitialized() {
 	i.initOnce.Do(func() {
-		langDir := filepath.Join(execDir, "lang")
-		if _, err := os.Stat(langDir); os.IsNotExist(err) {
-			langDir = "./lang"
+		for _, dir := range langDirCandidates() {
+			_ = i.LoadFromDir(dir)
+			if i.hasTranslations() {
+				break
+			}
 		}
-		_ = i.LoadFromDir(langDir)
 
 		if lang := os.Getenv("MINIBOT_LANGUAGE"); lang != "" {
 			i.SetLang(lang)
