@@ -32,34 +32,31 @@ const defaultUser = `# 使用者偏好
 時區：Asia/Taipei。
 風格偏好：技術問題請提供帶有註解的完整程式碼或明確且可被直接複製執行的指令。`
 
+// defaultConfig 是 onboard 產生的設定檔範本。
+//
+// 必須與 pkg/config 的 Config 結構保持一致；cmd_onboard_test.go 會實際載入它並
+// 驗證 FindModel 能解析出供應商，避免範本再次與 schema 脫節。
 const defaultConfig = `{
   "agents": {
     "defaults": {
       "workspace": "~/.minibot.go/workspace",
-      "model": "gpt4",
-      "max_tokens": 8192,
+      "model": "openai/gpt-4o-mini",
+      "maxTokens": 8192,
       "temperature": 0.7,
-      "max_tool_iterations": 20,
-      "restrict_to_workspace": true
+      "maxToolIterations": 20,
+      "requestTimeoutSeconds": 60
     }
   },
-  "model_list": [
-    {
-      "model_name": "gpt4",
-      "model": "openai/gpt-4",
-      "api_key": "YOUR_API_KEY_HERE"
-    },
-    {
-      "model_name": "llama3",
-      "model": "ollama/llama3",
-      "api_base": "http://localhost:11434/v1",
-      "api_key": "ollama"
+  "providers": {
+    "openai": {
+      "apiKey": "YOUR_API_KEY_HERE",
+      "apiBase": "https://api.openai.com/v1"
     }
-  ],
+  },
   "channels": {
     "telegram": {
       "enabled": false,
-      "token": "YOUR_BOT_TOKEN_HERE",
+      "botToken": "YOUR_BOT_TOKEN_HERE",
       "allow_from": ["YOUR_TELEGRAM_USER_ID"]
     }
   }
@@ -98,7 +95,7 @@ func RunOnboard(args []string) error {
 	}
 
 	// Update the config template with the provided token
-	finalConfig := strings.Replace(defaultConfig, "YOUR_API_KEY_HERE", apiKey, 1)
+	finalConfig := strings.ReplaceAll(defaultConfig, "YOUR_API_KEY_HERE", apiKey)
 
 	// Create Config File
 	// 權限 0600：config.json 內含 API 金鑰，與 config.checkFilePermissions

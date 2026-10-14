@@ -6,6 +6,7 @@
       "temperature": 0.7,
       "maxToolIterations": 20,
       "memoryWindow": 50,
+      "requestTimeoutSeconds": 60,
       "workspace": "~/.minibot.go/workspace"
     }
   },
@@ -18,7 +19,7 @@
   "channels": {
     "telegram": {
       "enabled": true,
-      "botToken": "your-telegram-bot-token-here",
+      "botToken": "YOUR_BOT_TOKEN_HERE",
       "allow_from": [
         "your-telegram-user-id-here"
       ]

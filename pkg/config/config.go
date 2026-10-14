@@ -258,7 +258,8 @@ func warnIfSensitiveDataPresent(data []byte) {
 					for ; end < len(content) && content[end] != '"'; end++ {
 					}
 					value := content[start+1 : end]
-					if value != "" && value != "YOUR_" && !strings.HasPrefix(value, "PLACEHOLDER") && !strings.HasPrefix(value, "example") {
+					// 佔位字串（YOUR_*、PLACEHOLDER*、example*）不是真金鑰，不應警告
+					if value != "" && !strings.HasPrefix(value, "YOUR_") && !strings.HasPrefix(value, "PLACEHOLDER") && !strings.HasPrefix(value, "example") {
 						t := i18n.GetInstance()
 						fmt.Println(t.T("warnings.sensitive_data"))
 						fmt.Println(t.T("warnings.use_env"))

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/chiisen/mini_bot/pkg/agent"
@@ -42,7 +43,7 @@ func RunGateway(args []string) error {
 	manager := channels.NewManager()
 
 	if cfg.Channels.Telegram.Enabled {
-		if cfg.Channels.Telegram.Token == "" || cfg.Channels.Telegram.Token == "YOUR_BOT_TOKEN_HERE" {
+		if isPlaceholderToken(cfg.Channels.Telegram.Token) {
 			logger.Warn("Telegram is enabled but no valid bot token provided. Skipping Telegram.")
 		} else {
 			tgChan := channels.NewTelegramChannel(&cfg.Channels.Telegram, messageBus)
@@ -76,4 +77,19 @@ func RunGateway(args []string) error {
 	}
 
 	return nil
+}
+
+// isPlaceholderToken 判斷 token 是否仍是範本中的佔位字串。
+//
+// 比起比對固定的常數字串，這裡一併涵蓋不同大小寫的寫法，避免使用者的
+// config.json 還是範本內容時，拿佔位字串去呼叫 Telegram API 而陷入
+// 無盡的失敗重試。
+func isPlaceholderToken(token string) bool {
+	if token == "" {
+		return true
+	}
+
+	lower := strings.ToLower(token)
+	return strings.Contains(lower, "your_bot_token") ||
+		strings.Contains(lower, "your-telegram-bot-token")
 }
