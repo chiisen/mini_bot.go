@@ -275,14 +275,12 @@ Agent: 根目錄底下有...
 ## 🛠️ 目錄結構與架構
 - 📂 `cmd/appname/`：CLI 指令的進入點 (main, agent, gateway, onboard, status)。
 - 🧠 `pkg/agent/`：Agent 的大腦核心，負責上下文建構、指令壓縮與 Tool Calling 的思考迴圈。
-  - > ⚠️ **注意**：`loop.go` 的 `Run()` 方法需要 Mock LLMProvider 才能完整測試（需要 mock 模擬 AI 回應），因涉及 API 呼叫會產生費用，暫不製作。
-
-> 📝 **待完成事項**：部分單元測試（`pkg/providers/`、`pkg/agent/`）需要 mock Go SDK 工具才能執行。這是因為 `pkg/tools/shell.go` 使用 `exec.Command` 動態執行 Go 程式碼來分析專案結構，在隔離測試環境中無法運行。建議未來使用介面模擬（interface mock）方式解決。
 - 📡 `pkg/channels/`：頻道管理器與 Telegram 整合。
 - 🧰 `pkg/tools/`：沙箱、檔案操作與命令列操作之本機工具實作。
 - 🔌 `pkg/providers/`：各大 LLM 廠商的相容適配層。
 - ⚙️ `pkg/config/`：配置檔定義與預設值讀寫。
 - 📜 `pkg/session/`：對話歷史的持久化、記錄與載入。
+- 🧪 測試：`Run()` 以手寫的 fake `LLMProvider` 驅動（介面模擬，零第三方依賴），涵蓋純文字回覆、工具呼叫與回饋、參數損壞、達到迭代上限、provider 錯誤與 context 取消；`exec` 與 HTTP 層則以 `httptest` 驗證。
 
 ## 🔐 安全性與 Sandbox
 
@@ -303,6 +301,16 @@ docker run -it --rm -v ~/.minibot.go:/root/.minibot.go minibot gateway
 
 對話歷史以 `0600` 權限保存在 `workspace/sessions/`，`config.json` 由 `onboard` 建立時同樣是 `0600`。 🛡️
 
+---
+
+## ⚠️ 已知限制
+
+- **上下文壓縮以訊息數為準**：超過 12 則時保留系統提示詞與最後 10 則（裁切點會對齊工具呼叫群組）。`maxTokens` 尚未用來估算實際的 token 預算，因此長度取決於內容而非上限（見 issue #20）。
+- **`exec` 不是作業系統層級的隔離**：細節與容器替代方案見上方「安全性與 Sandbox」。
+- **只有一種 provider 實作**（OpenAI 相容的 `/chat/completions`），且沒有 streaming 回應，長回覆要等整段生成完才輸出（見 issue #21）。
+- **長期記憶沒有大小上限**：`workspace/memory/MEMORY.md` 會持續累積，而且整份內容都會放進每一次的系統提示詞。
+- **對話歷史沒有輪替機制**：`workspace/sessions/*.json` 會持續成長，只有送給模型前才壓縮。
+
 ### 對話會話管理流程
 ```mermaid
 flowchart LR
@@ -322,7 +330,8 @@ flowchart LR
         C1{"訊息數量 gt 12"}
         C1 -->|"是"| C2["保留系統訊息"]
         C2 --> C3["保留最近 10 條"]
-        C3 --> C4["丟棄中間部分"]
+        C3 --> C3b["裁切點對齊工具呼叫群組起點"]
+        C3b --> C4["丟棄中間部分"]
         C1 -->|"否"| C5["不進行壓縮"]
     end
 
@@ -339,32 +348,19 @@ flowchart LR
 ### 輸入安全處理流程
 ```mermaid
 flowchart TD
-    input["使用者輸入"] --> length{"長度 gt 10000"}
-    length -->|"是"| truncate["截斷到 10000"]
-    length -->|"否"| sanitize["開始過濾"]
-    truncate --> sanitize
+    input["使用者輸入"] --> length{"rune 數 gt 10000"}
+    length -->|"是"| truncate["以 rune 截斷（不切斷 UTF-8）"]
+    length -->|"否"| fence
 
-    sanitize --> injection{"含注入關鍵字"}
-    injection -->|"是"| mark["標記為 FILTERED"]
-    injection -->|"否"| xss
+    truncate --> fence["中和足以提早關閉界線的連續反引號"]
+    fence --> detect{"含注入樣式"}
+    detect -->|"是"| log["記錄 warning（內容不改寫）"]
+    detect -->|"否"| wrap
 
-    mark --> xss
-    xss{"含 script 標籤"}
-    xss -->|"是"| escape_html["轉義 HTML"]
-    xss -->|"否"| template
-
-    escape_html --> template
-    template{"含模板語法"}
-    template -->|"是"| escape_template["轉義模板語法"]
-    template -->|"否"| bracket
-
-    escape_template --> bracket
-    bracket{"含方括號"}
-    bracket -->|"是"| escape_bracket["轉義方括號"]
-    bracket -->|"否"| wrap
-
-    escape_bracket --> wrap
-    wrap["Markdown code block 包裝"] --> output["輸出結果"]
+    log --> wrap
+    wrap["以界線包住輸入"] --> output["輸出結果"]
 ```
+
+> 使用者輸入**不會被改寫**：先前的版本會轉義 `{}` `[]` `<script>` 等字元並就地替換注入字串，對防護沒有實質幫助卻會破壞貼上的程式碼與 JSON。防護改由界線（fence）承擔，並中和足以提早關閉界線的連續反引號。
 
 <!-- [😸SAM] -->

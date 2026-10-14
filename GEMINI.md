@@ -77,6 +77,8 @@ go build -o app ./cmd/appname/
 - 使用中文撰寫 commit message
 - 格式：`<type>: <subject>`
 - Type：feat、fix、docs、refactor、test、chore
+- **開發流程（2026-10-14 起）**：直接在 `main` 上開發並 push，不開 PR。CI 會在每次 push 執行 gofmt / build / vet / `go test -race`，因此 commit 前請先在本機跑過同樣的指令
+- **關閉 issue**：在 commit message 內寫 `Closes #N`，推送後 GitHub 會自動關閉對應 issue 並更新看板
 
 ---
 
@@ -93,18 +95,22 @@ go build -o app ./cmd/appname/
 
 ## 🔧 技術栈
 
-- **語言**：Go 1.21+
-- **依賴**：標準函式庫為主，極少第三方依賴
-- **測試**：Go testing package
+- **語言**：Go 1.25+
+- **依賴**：**零第三方依賴**（僅使用標準函式庫），測試亦然
+- **測試**：Go testing package（表格驅動 + `t.Run`；不採用 testify，理由見 `.agent/TDD.md` 第 7 節）
 
 ---
 
 ## 📌 當前狀態
 
-- MVP 開發：✅ 已完成
-- 單元測試：✅ 通過 (28 tests)
-- 多語系支援：✅ 已實作
+> 本節是日期化的快照。重新驗證請執行 `go build ./... && go vet ./... && go test -race ./...`；
+> 權威狀態以 CI（`.github/workflows/ci.yml`）與 GitHub Issues 為準。
+
+- MVP 功能：已完成（CLI、Agent 迴圈、工具與沙盒、Telegram、i18n、Docker）
+- 單元測試：全部通過；CI 於每次 push 與 PR 在 ubuntu 與 macOS 上執行 `gofmt`、`build`、`vet` 與 `go test -race`，另在 Linux 交叉編譯 windows/amd64
+- 多語系支援：已實作（en／zh-tw）
+- 待辦與已知限制：見 GitHub Issues 與 `README.md` 的「已知限制」章節
 
 ---
 
-*最後更新：2026-03-05*
+*最後更新：2026-10-14*

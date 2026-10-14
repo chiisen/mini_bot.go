@@ -237,6 +237,12 @@ func TestAuthService_Login(t *testing.T) {
 
 ## 7. 推薦工具與架構
 
+> ⚠️ **本專案的決定（2026-10-14）**：本專案維持**零第三方依賴**，因此**不採用 testify**。
+> 下列 7.1 與 7.2 的範例適用於一般 Go 專案；若要在本專案採用，必須先確認是否願意放棄
+> 「零依賴」這個對外賣點。目前的作法：
+> - 表格驅動測試 + `t.Run` + 標準 `if` 斷言（見 `pkg/session/session_test.go`、`pkg/providers/openai_compat_test.go`）
+> - 需要替身時手寫介面實作，例如 `pkg/agent/loop_test.go` 的 `fakeProvider`、`pkg/providers` 用 `httptest` 假伺服器
+
 ### 7.1 斷言庫 (Testify)
 
 使用 `testify` 可以讓斷言更易讀，避免寫滿滿的 `if err != nil`：

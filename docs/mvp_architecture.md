@@ -207,7 +207,7 @@ sequenceDiagram
 
 ## 安全沙箱機制
 
-當 `restrict_to_workspace: true` 時：
+沙盒檢查**無條件開啟**（先前文件提到的 `restrict_to_workspace` 旗標從未被實作，已於 2026-10-14 移除）：
 
 | 工具 | 限制行為 |
 |------|----------|
@@ -216,12 +216,14 @@ sequenceDiagram
 | `list_dir` | 同上 |
 | `edit_file` | 同上 |
 | `append_file` | 同上 |
-| `exec` | 指令路徑必須在 workspace 內 + 封鎖危險指令 |
+| `exec` | 另外三層防護：拒絕 shell 控制字元、denylist、指令中的路徑必須在 workspace 內（非 OS 級隔離） |
 
 **路徑檢查邏輯：**
-1. 將輸入路徑轉為絕對路徑
-2. 確認絕對路徑以 workspace 路徑為前綴
+1. 將輸入路徑轉為絕對路徑，並展開路徑中已存在的最長前綴的 symlink（未展開會讓 macOS 的 `/var` → `private/var` 被誤判為逃逸）
+2. 確認展開後的路徑以（同樣展開過的）workspace 路徑為前綴
 3. 拒絕包含 `..` 的路徑嘗試
+
+> `exec` 的限制屬字串層級，無法涵蓋所有 shell 語法；需要真正隔離請以容器執行（見 `README.md` 的安全性章節）。
 
 ---
 
