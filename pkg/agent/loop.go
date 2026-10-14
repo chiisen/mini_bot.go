@@ -202,6 +202,12 @@ func (a *AgentInstance) Run(
 				onReply(fmt.Sprintf("[Agent uses tool: %s...]", call.Function.Name))
 				result := a.Registry.Execute(ctx, call.Function.Name, args)
 
+				// 工具若回報了使用者該知道的事（例如寫入記憶或改寫人格檔），直接輸出給
+				// 使用者——這類副作用不會出現在模型的最終回覆裡
+				if result.Notice != "" {
+					onReply(result.Notice)
+				}
+
 				// 將工具執行結果傳回給 LLM
 				// 這樣 LLM 可以根據結果產生最終回覆
 				// 注意：工具輸出是外部可控的文字，會以 tool-output 界線界定後才送出

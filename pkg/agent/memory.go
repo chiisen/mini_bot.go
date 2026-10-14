@@ -102,5 +102,9 @@ func (t *MemoryWriteTool) Execute(ctx context.Context, args map[string]any) *too
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Failed to write memory: %v", err), IsError: true}
 	}
 
-	return &tools.ToolResult{ForLLM: "Memory saved. It will be available in future conversations."}
+	// 記憶會被讀進之後每一次的系統提示詞，屬於使用者該知道的副作用，因此附上 Notice
+	return &tools.ToolResult{
+		ForLLM: "Memory saved. It will be available in future conversations.",
+		Notice: i18n.GetInstance().T("notices.memory_written", tools.PreviewForNotice(content, 60)),
+	}
 }

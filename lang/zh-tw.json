@@ -69,5 +69,9 @@
     "workspace": "工作區: %s",
     "model": "模型: %s",
     "telegram": "Telegram: %s"
+  },
+  "notices": {
+    "persona_file_written": "⚠️ 助理寫入了 %s，該檔案會被讀進系統提示詞——如果不是你預期的，請檢查一下。",
+    "memory_written": "📝 已寫入長期記憶：%s"
   }
 }

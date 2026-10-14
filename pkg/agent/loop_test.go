@@ -473,6 +473,34 @@ func TestAgent_Run_WrapsToolOutput(t *testing.T) {
 	}
 }
 
+// TestAgent_Run_EmitsToolNotice 驗證工具的 Notice 會輸出給使用者。
+//
+// 寫入記憶或改寫人格檔不會出現在模型的最終回覆裡，使用者只能靠這個提示察覺。
+func TestAgent_Run_EmitsToolNotice(t *testing.T) {
+	loadTestTranslations(t)
+
+	const notice = "⚠️ 助理寫入了 AGENT.md，該檔案會被讀進系統提示詞"
+
+	tool := &fakeTool{name: "write_file", result: &tools.ToolResult{ForLLM: "ok", Notice: notice}}
+	registry := tools.NewRegistry()
+	registry.Register(tool)
+
+	provider := &fakeProvider{responses: []providers.LLMResponse{
+		toolCall("call_1", "write_file", `{}`),
+		{Content: "done"},
+	}}
+	agent := newTestAgent(t, provider, registry, 5)
+
+	var replies replyCollector
+	if err := agent.Run(context.Background(), "sess_notice", "write it", replies.add); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !replies.has(notice) {
+		t.Errorf("使用者的輸出應包含工具提示，實際收到 %q", replies.joined())
+	}
+}
+
 // ============================================================================
 // 既有測試
 // ============================================================================

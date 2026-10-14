@@ -69,5 +69,9 @@
     "workspace": "Workspace: %s",
     "model": "Model: %s",
     "telegram": "Telegram: %s"
+  },
+  "notices": {
+    "persona_file_written": "⚠️ The assistant wrote to %s, which is fed into its system prompt - review it if you did not expect this.",
+    "memory_written": "📝 Saved to long-term memory: %s"
   }
 }

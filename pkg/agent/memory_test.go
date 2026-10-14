@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -202,5 +203,36 @@ func TestMemoryWriteTool_Schema(t *testing.T) {
 	required, ok := params["required"].([]string)
 	if !ok || len(required) != 1 || required[0] != "content" {
 		t.Errorf("expected content to be required, got %v", params["required"])
+	}
+}
+
+// TestMemoryWriteTool_Notice 驗證寫入記憶時附上給使用者看的提示。
+//
+// 記憶會被讀進之後每一次的系統提示詞，屬於使用者該知道的副作用。
+func TestMemoryWriteTool_Notice(t *testing.T) {
+	tool := &MemoryWriteTool{Memory: NewMemoryManager(filepath.Join(t.TempDir(), "MEMORY.md"))}
+
+	result := tool.Execute(context.Background(), map[string]any{"content": "使用者偏好繁體中文"})
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.ForLLM)
+	}
+	if result.Notice == "" {
+		t.Fatal("寫入記憶時應附上使用者提示")
+	}
+	if !strings.Contains(result.Notice, "使用者偏好繁體中文") {
+		t.Errorf("提示應包含寫入內容的預覽：%q", result.Notice)
+	}
+}
+
+// TestMemoryWriteTool_NoticePreviewIsTruncated 驗證過長內容的預覽會被截斷。
+func TestMemoryWriteTool_NoticePreviewIsTruncated(t *testing.T) {
+	tool := &MemoryWriteTool{Memory: NewMemoryManager(filepath.Join(t.TempDir(), "MEMORY.md"))}
+
+	result := tool.Execute(context.Background(), map[string]any{"content": strings.Repeat("中", 200)})
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.ForLLM)
+	}
+	if got := strings.Count(result.Notice, "中"); got > 61 {
+		t.Errorf("預覽應截斷到 60 個字元，實際 %d", got)
 	}
 }

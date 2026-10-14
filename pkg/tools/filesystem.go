@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -174,12 +175,21 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *ToolR
 		return &ToolResult{ForLLM: err.Error(), IsError: true}
 	}
 
+	// 建立上層目錄：onboard 只會建立 workspace 與 sessions/memory，自訂 workspace
+	// 或要寫到新目錄時，不建立就會以 no such file or directory 失敗
+	if err := os.MkdirAll(filepath.Dir(safePath), 0755); err != nil {
+		return &ToolResult{ForLLM: fmt.Sprintf("Failed to create directory: %v", err), IsError: true}
+	}
+
 	// 寫入檔案
 	// 權限 0600: rw------- (只有所有者可讀寫)
 	if err := os.WriteFile(safePath, []byte(content), 0600); err != nil {
 		return &ToolResult{ForLLM: fmt.Sprintf(i18n.GetInstance().T("errors.write_failed"), err), IsError: true}
 	}
-	return &ToolResult{ForLLM: "File written successfully.", IsError: false}
+	return &ToolResult{
+		ForLLM: "File written successfully.",
+		Notice: personaFileNotice(t.Sandbox, path),
+	}
 }
 
 // ============================================================================
@@ -227,6 +237,11 @@ func (t *AppendFileTool) Execute(ctx context.Context, args map[string]any) *Tool
 		return &ToolResult{ForLLM: err.Error(), IsError: true}
 	}
 
+	// 建立上層目錄（理由同 write_file）
+	if err := os.MkdirAll(filepath.Dir(safePath), 0755); err != nil {
+		return &ToolResult{ForLLM: fmt.Sprintf("Failed to create directory: %v", err), IsError: true}
+	}
+
 	// 以追加模式開啟檔案
 	// os.O_APPEND: 追加模式
 	// os.O_CREATE: 如果檔案不存在則建立
@@ -241,7 +256,10 @@ func (t *AppendFileTool) Execute(ctx context.Context, args map[string]any) *Tool
 	if _, err := f.WriteString(content); err != nil {
 		return &ToolResult{ForLLM: fmt.Sprintf("Failed to append: %v", err), IsError: true}
 	}
-	return &ToolResult{ForLLM: "Content appended successfully.", IsError: false}
+	return &ToolResult{
+		ForLLM: "Content appended successfully.",
+		Notice: personaFileNotice(t.Sandbox, path),
+	}
 }
 
 // ============================================================================
@@ -346,7 +364,10 @@ func (t *EditFileTool) Execute(ctx context.Context, args map[string]any) *ToolRe
 		return &ToolResult{ForLLM: fmt.Sprintf("Failed to write changes: %v", err), IsError: true}
 	}
 
-	return &ToolResult{ForLLM: "File edited successfully.", IsError: false}
+	return &ToolResult{
+		ForLLM: "File edited successfully.",
+		Notice: personaFileNotice(t.Sandbox, path),
+	}
 }
 
 // ============================================================================
