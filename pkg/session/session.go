@@ -33,13 +33,6 @@ type Manager struct {
 	StorageDir string // 儲存目錄路徑，所有會話檔案都保存在此目錄下
 }
 
-const (
-	// compressThreshold 是觸發上下文壓縮的訊息數門檻
-	compressThreshold = 12
-	// compressTailSize 是壓縮時保留的最近訊息數（可能因工具群組對齊而略多）
-	compressTailSize = 10
-)
-
 // NewManager 建立新的會話管理器
 //
 // 參數：
@@ -147,65 +140,80 @@ func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
 // ============================================================================
 // Compress: 上下文壓縮
 // ============================================================================
-// 當對話歷史過長時，進行上下文壓縮以節省 Token 數量。
-// 這對於處理長對話非常重要，因為大多數 LLM 都有 Token 數量限制。
+// 依「token 預算」保留最近的對話，取代先前的固定則數（12 則 / 保留 10 則）。
 //
-// 壓縮策略 (MVP 版本)：
-//  1. 如果訊息數量 <= compressThreshold，不進行壓縮
-//  2. 總是保留第一條系統訊息 (index 0)
-//  3. 保留最後 compressTailSize 條訊息
-//  4. 丟棄中間的訊息
-//  5. 裁切點會往前對齊工具呼叫群組的起點，避免產生孤兒 tool 訊息
+// 固定則數的問題在於它與內容長度無關：10 則含大段程式碼或工具輸出的訊息可能遠超
+// 模型上限，而 100 則短訊息則可能遠低於上限卻照樣被丟掉。改成預算之後，短對話不會
+// 因為「則數多」被裁切，長對話則會被裁到塞得下。
 //
-// 這種策略的假設：
-//   - 系統提示詞是最重要的，需要保留
-//   - 最近的對話最相關
-//   - 早期的對話歷史相對不重要
+// 壓縮策略：
+//  1. 系統提示詞（第一則，若有）一律保留
+//  2. 從最新的一則往回累積，直到超出 maxTokens 預算
+//  3. 至少保留最後一則訊息——即使它本身就超出預算，也不能讓模型沒有東西可回
+//  4. 裁切點往前對齊工具呼叫群組的起點，避免產生孤兒 tool 訊息
 //
 // 參數：
 //   - messages: 原始訊息列表
-//   - maxTokens: 最大 Token 數量 (目前未使用，預留給未來更精確的壓縮)
+//   - maxTokens: 這次請求的 token 預算；<= 0 時採用 DefaultContextBudgetTokens
 //
 // 回傳：
-//   - []providers.Message: 壓縮後的訊息列表
+//   - []providers.Message: 壓縮後的訊息列表（未超預算時原樣返回）
 //
+// 備註：被丟棄的中段目前直接捨棄，沒有摘要。若日後需要保留事實，可另做摘要機制。
 // ============================================================================
 func (m *Manager) Compress(messages []providers.Message, maxTokens int) []providers.Message {
-	// 簡單的基於規則的壓縮邏輯 (MVP)
-	// 如果訊息數量很少，不需要壓縮
-	if len(messages) <= compressThreshold {
+	if len(messages) <= 1 {
 		return messages
 	}
 
-	var compressed []providers.Message
-
-	// 總是保留系統提示詞 (假設它在第一個位置)
-	if len(messages) > 0 && messages[0].Role == "system" {
-		compressed = append(compressed, messages[0])
-		// 從剩餘訊息中移除已處理的系統訊息
-		messages = messages[1:]
+	budget := maxTokens
+	if budget <= 0 {
+		budget = DefaultContextBudgetTokens
 	}
 
-	// 保留最後 N 條訊息
-	// 這些通常是最重要的上下文
-	tailSize := compressTailSize
-	if len(messages) < tailSize {
-		tailSize = len(messages)
+	// 系統提示詞一律保留
+	var system *providers.Message
+	rest := messages
+	if messages[0].Role == "system" {
+		system = &messages[0]
+		rest = messages[1:]
 	}
 
-	start := len(messages) - tailSize
+	used := 0
+	if system != nil {
+		used = estimateMessageTokens(*system)
+	}
 
-	// 裁切點必須落在工具呼叫群組的起點，不能切在群組中間：`tool` 訊息只能
-	// 緊接在發出該呼叫的 assistant 訊息之後，否則 OpenAI 相容 API 會以 400
-	// 拒絕整個請求（messages with role 'tool' must be a response to a
-	// preceding message with 'tool_calls'）。往前推的代價是可能多保留幾則
-	// 訊息，換來的是合法可用的序列。
-	for start > 0 && messages[start].Role == "tool" {
+	// 從最新往回累積，直到超出預算。條件中的 start < len(rest) 確保最後一則一定
+	// 會被保留（第一次迭代時 start 等於 len(rest)）。
+	start := len(rest)
+	for i := len(rest) - 1; i >= 0; i-- {
+		cost := estimateMessageTokens(rest[i])
+		if used+cost > budget && start < len(rest) {
+			break
+		}
+		used += cost
+		start = i
+	}
+
+	// 裁切點必須落在工具呼叫群組的起點，不能切在群組中間：`tool` 訊息只能緊接在
+	// 發出該呼叫的 assistant 訊息之後，否則 OpenAI 相容 API 會以 400 拒絕整個請求
+	// （messages with role 'tool' must be a response to a preceding message with
+	// 'tool_calls'）。往前推的代價是可能超出預算，換來的是合法可用的序列。
+	for start > 0 && rest[start].Role == "tool" {
 		start--
 	}
 
-	// 追加保留下來的尾段
-	compressed = append(compressed, messages[start:]...)
+	// 全部都在預算內（或已無可裁切）時原樣返回
+	if start == 0 {
+		return messages
+	}
+
+	compressed := make([]providers.Message, 0, len(rest)-start+1)
+	if system != nil {
+		compressed = append(compressed, *system)
+	}
+	compressed = append(compressed, rest[start:]...)
 
 	return compressed
 }

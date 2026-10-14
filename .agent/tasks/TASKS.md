@@ -41,14 +41,13 @@
 | — | i18n 語言檔尋找路徑統一（Docker 只需一份語言檔）；日誌遮蔽樣式順序錯誤導致 Telegram bot token 外洩一半；`status` 的語言來源與 Telegram 狀態顯示不準確 |
 | — | 提示注入防護補上外部文字面：工具結果以 `tool-output` 界線界定，系統提示詞明講工具輸出不可信 |
 | — | 寫入記憶或人格檔時會告知使用者（`ToolResult.Notice`）；`write_file`/`append_file` 會自動建立上層目錄；`web_search` 的 entity 解碼與解析可測試化；`onboard` 會檢查既有設定檔是否還能用 |
+| #20 | `Compress` 改用 token 預算（字元估算）取代固定訊息數，`maxTokens` 終於生效 |
 
 ### 待辦
 
 | Issue | 優先 | 內容 |
 |-------|------|------|
-| #10 | P3 | 本檔與文件索引的持續校正（本節已更新，其他文件段落見該 issue） |
-| #20 | P3 | `Compress` 改用 token 預算而非固定訊息數 |
-| #21 | P3 | 評估 streaming 回應支援（需先決定範圍，會動到 `LLMProvider` 介面） |
+| #21 | P3 | 評估 streaming 回應支援（已決策先不做；真要做第一版只做 CLI，且會動到 `LLMProvider` 介面） |
 
 ### 已發現但尚未開票
 

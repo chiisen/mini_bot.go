@@ -383,6 +383,10 @@ func TestAgent_Run_CompressedHistoryKeepsToolPairs(t *testing.T) {
 			provider := &fakeProvider{responses: []providers.LLMResponse{{Content: "ok"}}}
 			agent := newTestAgent(t, provider, tools.NewRegistry(), 5)
 
+			// 改成 token 預算制之後，十幾則短訊息其實塞得進預設預算，因此這裡用很小的
+			// 預算確保一定會觸發壓縮
+			agent.Config.Agents.Defaults.MaxTokens = 60
+
 			history := []providers.Message{{Role: "user", Content: "start"}}
 			for i := 0; i < pad; i++ {
 				history = append(history, providers.Message{Role: "assistant", Content: "padding"})

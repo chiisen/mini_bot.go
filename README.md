@@ -309,7 +309,7 @@ docker run -it --rm -v ~/.minibot.go:/root/.minibot.go minibot gateway
 
 ## ⚠️ 已知限制
 
-- **上下文壓縮以訊息數為準**：超過 12 則時保留系統提示詞與最後 10 則（裁切點會對齊工具呼叫群組）。`maxTokens` 尚未用來估算實際的 token 預算，因此長度取決於內容而非上限（見 issue #20）。
+- **上下文壓縮以 token 預算為準**：以字元估算 token（CJK 等寬字元約 1 字元 1 token、其餘約 4 字元 1 token），超過 `agents.defaults.maxTokens` 時保留系統提示詞與最近的訊息，裁切點會對齊工具呼叫群組。估算是粗略的近似（誤差約兩成），不是計費依據；真正的上下文上限取決於供應商與模型，無法從設定得知。
 - **`exec` 不是作業系統層級的隔離**：細節與容器替代方案見上方「安全性與 Sandbox」。
 - **只有一種 provider 實作**（OpenAI 相容的 `/chat/completions`），且沒有 streaming 回應，長回覆要等整段生成完才輸出（見 issue #21）。
 - **長期記憶沒有大小上限**：`workspace/memory/MEMORY.md` 會持續累積，而且整份內容都會放進每一次的系統提示詞。
@@ -331,11 +331,11 @@ flowchart LR
     end
 
     subgraph Compress["上下文壓縮"]
-        C1{"訊息數量 gt 12"}
+        C1{"估算 token 超過預算"}
         C1 -->|"是"| C2["保留系統訊息"]
-        C2 --> C3["保留最近 10 條"]
+        C2 --> C3["從最新往回保留至預算內"]
         C3 --> C3b["裁切點對齊工具呼叫群組起點"]
-        C3b --> C4["丟棄中間部分"]
+        C3b --> C4["丟棄中段"]
         C1 -->|"否"| C5["不進行壓縮"]
     end
 

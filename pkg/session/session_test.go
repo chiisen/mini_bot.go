@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chiisen/mini_bot/pkg/providers"
@@ -97,7 +98,6 @@ func TestManager_Save_Overwrites(t *testing.T) {
 func TestManager_Compress_NoChange(t *testing.T) {
 	m := NewManager("/tmp")
 
-	// Test with fewer than 12 messages - should not compress
 	messages := []providers.Message{
 		{Role: "system", Content: "System prompt"},
 		{Role: "user", Content: "Hello"},
@@ -110,48 +110,99 @@ func TestManager_Compress_NoChange(t *testing.T) {
 	}
 }
 
-func TestManager_Compress_Aggressive(t *testing.T) {
+// TestManager_Compress_KeepsManyShortMessages 驗證大量短訊息不會因為「則數多」被裁掉。
+//
+// 這是改用 token 預算的主要理由：先前的固定則數策略會丟掉這些便宜的上下文。
+func TestManager_Compress_KeepsManyShortMessages(t *testing.T) {
 	m := NewManager("/tmp")
 
-	// Create more than 12 messages
-	messages := make([]providers.Message, 20)
-	messages[0] = providers.Message{Role: "system", Content: "System prompt"}
-	for i := 1; i < 20; i++ {
-		messages[i] = providers.Message{Role: "user", Content: "Message"}
+	messages := []providers.Message{{Role: "system", Content: "System prompt"}}
+	for i := 0; i < 100; i++ {
+		messages = append(messages, providers.Message{Role: "user", Content: "hi"})
 	}
 
-	compressed := m.Compress(messages, 1000)
+	compressed := m.Compress(messages, DefaultContextBudgetTokens)
 
-	// Should keep system message and last 10 messages = 11 total
-	if len(compressed) != 11 {
-		t.Errorf("expected 11 messages after compression, got %d", len(compressed))
-	}
-
-	// First should be system
-	if compressed[0].Role != "system" {
-		t.Errorf("expected first message to be system, got %s", compressed[0].Role)
-	}
-
-	// Last should be the last original message
-	if compressed[len(compressed)-1].Content != "Message" {
-		t.Errorf("expected last message to be Message, got %s", compressed[len(compressed)-1].Content)
+	if len(compressed) != len(messages) {
+		t.Errorf("短訊息總量遠低於預算，不應被裁切：%d → %d", len(messages), len(compressed))
 	}
 }
 
+// TestManager_Compress_TrimsWhenOverBudget 驗證超出預算時會裁掉中段並保留系統訊息
+// 與最新的一則。
+func TestManager_Compress_TrimsWhenOverBudget(t *testing.T) {
+	m := NewManager("/tmp")
+
+	messages := []providers.Message{{Role: "system", Content: "System prompt"}}
+	for i := 0; i < 50; i++ {
+		messages = append(messages, providers.Message{Role: "user", Content: strings.Repeat("x", 400)})
+	}
+
+	const budget = 500
+	compressed := m.Compress(messages, budget)
+
+	if compressed[0].Role != "system" {
+		t.Errorf("系統提示詞必須保留，得到 %s", compressed[0].Role)
+	}
+	if len(compressed) >= len(messages) {
+		t.Errorf("超出預算時應裁切：%d → %d", len(messages), len(compressed))
+	}
+	if len(compressed) < 2 {
+		t.Fatalf("至少應保留系統提示詞與最新一則，得到 %d 則", len(compressed))
+	}
+	if got, want := compressed[len(compressed)-1].Content, messages[len(messages)-1].Content; got != want {
+		t.Error("最新一則必須保留")
+	}
+
+	// 保留的內容應該大致落在預算內（允許對齊工具群組造成的少量超出）
+	total := 0
+	for _, msg := range compressed {
+		total += estimateMessageTokens(msg)
+	}
+	if total > budget*2 {
+		t.Errorf("裁切後仍遠超預算：%d tokens（預算 %d）", total, budget)
+	}
+}
+
+// TestManager_Compress_KeepsLastMessageEvenIfOverBudget 驗證單則訊息就超出預算時，
+// 仍會保留它——否則模型沒有東西可以回應。
+func TestManager_Compress_KeepsLastMessageEvenIfOverBudget(t *testing.T) {
+	m := NewManager("/tmp")
+	huge := strings.Repeat("x", 100000)
+
+	messages := []providers.Message{
+		{Role: "system", Content: "System prompt"},
+		{Role: "user", Content: "old question"},
+		{Role: "assistant", Content: "old answer"},
+		{Role: "user", Content: huge},
+	}
+
+	compressed := m.Compress(messages, 100)
+
+	if len(compressed) != 2 {
+		t.Fatalf("應只保留系統提示詞與最新一則，得到 %d 則", len(compressed))
+	}
+	if compressed[len(compressed)-1].Content != huge {
+		t.Error("即使超出預算，最新一則仍必須保留")
+	}
+}
+
+// TestManager_Compress_NoSystemMessage 驗證沒有系統訊息時仍會依預算裁切。
 func TestManager_Compress_NoSystemMessage(t *testing.T) {
 	m := NewManager("/tmp")
 
-	// No system message
-	messages := make([]providers.Message, 15)
+	messages := make([]providers.Message, 0, 15)
 	for i := 0; i < 15; i++ {
-		messages[i] = providers.Message{Role: "user", Content: "Message " + string(rune('0'+i))}
+		messages = append(messages, providers.Message{Role: "user", Content: strings.Repeat("x", 400)})
 	}
 
-	compressed := m.Compress(messages, 1000)
+	compressed := m.Compress(messages, 500)
 
-	// Should keep last 10
-	if len(compressed) != 10 {
-		t.Errorf("expected 10 messages after compression, got %d", len(compressed))
+	if len(compressed) >= len(messages) {
+		t.Errorf("超出預算時應裁切：%d → %d", len(messages), len(compressed))
+	}
+	if got, want := compressed[len(compressed)-1].Content, messages[len(messages)-1].Content; got != want {
+		t.Error("最新一則必須保留")
 	}
 }
 
@@ -233,7 +284,8 @@ func TestManager_Compress_AlignsToolBoundary(t *testing.T) {
 	m := NewManager("/tmp")
 	history := historyWithToolLoop()
 
-	compressed := m.Compress(history, 1000)
+	// 用很小的預算強制裁切
+	compressed := m.Compress(history, 60)
 
 	if compressed[0].Role != "system" {
 		t.Errorf("expected first message to be system, got %s", compressed[0].Role)
@@ -249,13 +301,54 @@ func TestManager_Compress_AlignsToolBoundary(t *testing.T) {
 	}
 }
 
-// TestManager_Compress_ToolGroupLongerThanTail 驗證當尾段幾乎都屬於同一個工具
-// 群組時，裁切點會一路往前推到發出這些呼叫的 assistant 訊息。
+// TestEstimateTokens 驗證字元估算的規則與量級。
+func TestEstimateTokens(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{"空字串", "", 0},
+		{"純英文 400 字約 100 tokens", strings.Repeat("a", 400), 100},
+		{"純中文 100 字約 100 tokens", strings.Repeat("中", 100), 100},
+		{"混合", "hello 中文 world", 5},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := estimateTokens(tc.input); got != tc.want {
+				t.Errorf("expected %d, got %d", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestEstimateMessageTokens_CountsToolCalls 驗證工具呼叫的名稱與參數也計入成本。
+func TestEstimateMessageTokens_CountsToolCalls(t *testing.T) {
+	plain := providers.Message{Role: "assistant", Content: "hi"}
+	withCall := providers.Message{
+		Role:    "assistant",
+		Content: "hi",
+		ToolCalls: []providers.ToolCall{
+			{
+				ID:       "c1",
+				Type:     "function",
+				Function: providers.FunctionCall{Name: "read_file", Arguments: `{"path":"a/b/c.txt"}`},
+			},
+		},
+	}
+
+	if estimateMessageTokens(withCall) <= estimateMessageTokens(plain) {
+		t.Error("含工具呼叫的訊息成本應高於純文字訊息")
+	}
+}
+
+// TestManager_Compress_ToolGroupKeptIntact 驗證當尾段幾乎都屬於同一個工具群組時，
+// 裁切點會一路往前推到發出這些呼叫的 assistant 訊息。
 //
-// 一個 assistant 訊息可以同時發出多個工具呼叫（平行工具呼叫），此時群組長度
-// 可能超過 compressTailSize。這種情況下寧可整段保留、放棄壓縮，也不能切出
-// 孤兒 tool 訊息。
-func TestManager_Compress_ToolGroupLongerThanTail(t *testing.T) {
+// 一個 assistant 訊息可以同時發出多個工具呼叫（平行工具呼叫），此時群組長度可能
+// 超過預算。這種情況下寧可超出預算，也不能切出孤兒 tool 訊息。
+func TestManager_Compress_ToolGroupKeptIntact(t *testing.T) {
 	m := NewManager("/tmp")
 
 	messages := []providers.Message{
@@ -276,7 +369,8 @@ func TestManager_Compress_ToolGroupLongerThanTail(t *testing.T) {
 		})
 	}
 
-	compressed := m.Compress(messages, 1000)
+	// 預算只夠放其中一部分，迫使裁切點往前推到工具群組的起點
+	compressed := m.Compress(messages, 150)
 
 	if compressed[0].Role != "system" {
 		t.Errorf("expected system message to be kept, got %s", compressed[0].Role)
