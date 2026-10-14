@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -175,4 +176,113 @@ func TestManager_Save_CreatesStorageDir(t *testing.T) {
 	if len(loaded) != 1 || loaded[0].Content != "Hello" {
 		t.Errorf("unexpected loaded messages: %+v", loaded)
 	}
+}
+
+// ============================================================================
+// 工具呼叫邊界 (tool call boundary)
+// ============================================================================
+
+// assertNoOrphanToolMessages 驗證每個 tool 訊息都有對應的 assistant tool_call
+// 出現在它之前。缺少配對時，OpenAI 相容 API 會以 400 拒絕整個請求。
+func assertNoOrphanToolMessages(t *testing.T, messages []providers.Message) {
+	t.Helper()
+
+	pending := make(map[string]bool)
+	for i, msg := range messages {
+		switch msg.Role {
+		case "assistant":
+			for _, call := range msg.ToolCalls {
+				pending[call.ID] = true
+			}
+		case "tool":
+			if !pending[msg.ToolCallID] {
+				t.Errorf("index %d: tool 訊息 %q 缺少對應的 assistant tool_call（孤兒 tool 訊息）", i, msg.ToolCallID)
+			}
+			delete(pending, msg.ToolCallID)
+		}
+	}
+}
+
+// historyWithToolLoop 產生一段歷史，其排列刻意讓「取最後 compressTailSize 則」
+// 的裁切點剛好落在工具呼叫群組中間。
+func historyWithToolLoop() []providers.Message {
+	history := []providers.Message{
+		{Role: "system", Content: "System prompt"},
+		{Role: "user", Content: "start"},
+	}
+
+	for i := 1; i <= 6; i++ {
+		id := fmt.Sprintf("call_%d", i)
+		history = append(history,
+			providers.Message{
+				Role:      "assistant",
+				ToolCalls: []providers.ToolCall{{ID: id, Type: "function"}},
+			},
+			providers.Message{Role: "tool", ToolCallID: id, Content: "result"},
+		)
+	}
+
+	return append(history, providers.Message{Role: "assistant", Content: "done"})
+}
+
+// TestManager_Compress_AlignsToolBoundary 驗證裁切點不會落在工具呼叫群組中間。
+//
+// 修正前 Compress 以固定則數裁切，當裁切點剛好是 tool 訊息時，送給 LLM 的
+// 序列會以孤兒 tool 訊息開頭，OpenAI 相容 API 直接回 400，長對話因此無法繼續。
+func TestManager_Compress_AlignsToolBoundary(t *testing.T) {
+	m := NewManager("/tmp")
+	history := historyWithToolLoop()
+
+	compressed := m.Compress(history, 1000)
+
+	if compressed[0].Role != "system" {
+		t.Errorf("expected first message to be system, got %s", compressed[0].Role)
+	}
+	if compressed[1].Role == "tool" {
+		t.Fatal("壓縮後的序列以 tool 訊息開頭，這會讓 OpenAI 相容 API 回 400")
+	}
+	assertNoOrphanToolMessages(t, compressed)
+
+	// 壓縮仍必須有意義：結果要比原始歷史短
+	if len(compressed) >= len(history) {
+		t.Errorf("expected compression to shrink the history: %d -> %d", len(history), len(compressed))
+	}
+}
+
+// TestManager_Compress_ToolGroupLongerThanTail 驗證當尾段幾乎都屬於同一個工具
+// 群組時，裁切點會一路往前推到發出這些呼叫的 assistant 訊息。
+//
+// 一個 assistant 訊息可以同時發出多個工具呼叫（平行工具呼叫），此時群組長度
+// 可能超過 compressTailSize。這種情況下寧可整段保留、放棄壓縮，也不能切出
+// 孤兒 tool 訊息。
+func TestManager_Compress_ToolGroupLongerThanTail(t *testing.T) {
+	m := NewManager("/tmp")
+
+	messages := []providers.Message{
+		{Role: "system", Content: "System prompt"},
+		{Role: "user", Content: "start"},
+	}
+
+	calls := make([]providers.ToolCall, 0, 12)
+	for i := 1; i <= 12; i++ {
+		calls = append(calls, providers.ToolCall{ID: fmt.Sprintf("call_%d", i), Type: "function"})
+	}
+	messages = append(messages, providers.Message{Role: "assistant", ToolCalls: calls})
+	for i := 1; i <= 12; i++ {
+		messages = append(messages, providers.Message{
+			Role:       "tool",
+			ToolCallID: fmt.Sprintf("call_%d", i),
+			Content:    "result",
+		})
+	}
+
+	compressed := m.Compress(messages, 1000)
+
+	if compressed[0].Role != "system" {
+		t.Errorf("expected system message to be kept, got %s", compressed[0].Role)
+	}
+	if compressed[1].Role == "tool" {
+		t.Fatal("壓縮後的序列以 tool 訊息開頭，這會讓 OpenAI 相容 API 回 400")
+	}
+	assertNoOrphanToolMessages(t, compressed)
 }

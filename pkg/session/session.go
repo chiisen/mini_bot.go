@@ -33,6 +33,13 @@ type Manager struct {
 	StorageDir string // 儲存目錄路徑，所有會話檔案都保存在此目錄下
 }
 
+const (
+	// compressThreshold 是觸發上下文壓縮的訊息數門檻
+	compressThreshold = 12
+	// compressTailSize 是壓縮時保留的最近訊息數（可能因工具群組對齊而略多）
+	compressTailSize = 10
+)
+
 // NewManager 建立新的會話管理器
 //
 // 參數：
@@ -144,10 +151,11 @@ func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
 // 這對於處理長對話非常重要，因為大多數 LLM 都有 Token 數量限制。
 //
 // 壓縮策略 (MVP 版本)：
-//  1. 如果訊息數量 <= 12，不進行壓縮
+//  1. 如果訊息數量 <= compressThreshold，不進行壓縮
 //  2. 總是保留第一條系統訊息 (index 0)
-//  3. 保留最後 10 條訊息
+//  3. 保留最後 compressTailSize 條訊息
 //  4. 丟棄中間的訊息
+//  5. 裁切點會往前對齊工具呼叫群組的起點，避免產生孤兒 tool 訊息
 //
 // 這種策略的假設：
 //   - 系統提示詞是最重要的，需要保留
@@ -165,7 +173,7 @@ func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
 func (m *Manager) Compress(messages []providers.Message, maxTokens int) []providers.Message {
 	// 簡單的基於規則的壓縮邏輯 (MVP)
 	// 如果訊息數量很少，不需要壓縮
-	if len(messages) <= 12 {
+	if len(messages) <= compressThreshold {
 		return messages
 	}
 
@@ -178,15 +186,26 @@ func (m *Manager) Compress(messages []providers.Message, maxTokens int) []provid
 		messages = messages[1:]
 	}
 
-	// 保留最後 10 條訊息
+	// 保留最後 N 條訊息
 	// 這些通常是最重要的上下文
-	tailSize := 10
+	tailSize := compressTailSize
 	if len(messages) < tailSize {
 		tailSize = len(messages)
 	}
 
-	// 追加最後 tailSize 條訊息
-	compressed = append(compressed, messages[len(messages)-tailSize:]...)
+	start := len(messages) - tailSize
+
+	// 裁切點必須落在工具呼叫群組的起點，不能切在群組中間：`tool` 訊息只能
+	// 緊接在發出該呼叫的 assistant 訊息之後，否則 OpenAI 相容 API 會以 400
+	// 拒絕整個請求（messages with role 'tool' must be a response to a
+	// preceding message with 'tool_calls'）。往前推的代價是可能多保留幾則
+	// 訊息，換來的是合法可用的序列。
+	for start > 0 && messages[start].Role == "tool" {
+		start--
+	}
+
+	// 追加保留下來的尾段
+	compressed = append(compressed, messages[start:]...)
 
 	return compressed
 }
