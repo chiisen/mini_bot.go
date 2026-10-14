@@ -37,5 +37,5 @@ func NewProvider(modelCfg *config.ModelConfig) (LLMProvider, error) {
 	}
 
 	// Route to OpenAI compat provider since most vendors support the `/chat/completions` format
-	return NewOpenAICompatProvider(apiBase, modelCfg.APIKey), nil
+	return NewOpenAICompatProvider(apiBase, modelCfg.APIKey, modelCfg.RequestTimeout), nil
 }

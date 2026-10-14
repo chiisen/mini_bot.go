@@ -4,7 +4,52 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+// TestRequestTimeout 驗證單次 LLM 請求的逾時換算，並確認異常值會退回預設值
+// （http.Client 的 0 代表「不設逾時」，不能讓它流到 provider）。
+func TestRequestTimeout(t *testing.T) {
+	cases := []struct {
+		name    string
+		seconds int
+		want    time.Duration
+	}{
+		{"使用設定值", 15, 15 * time.Second},
+		{"未設定時使用預設", 0, DefaultRequestTimeoutSeconds * time.Second},
+		{"負值時使用預設", -5, DefaultRequestTimeoutSeconds * time.Second},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.Agents.Defaults.RequestTimeoutSeconds = tc.seconds
+
+			if got := cfg.requestTimeout(); got != tc.want {
+				t.Errorf("expected %s, got %s", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestFindModel_SetsRequestTimeout 驗證逾時會隨選定的模型傳遞給 provider。
+func TestFindModel_SetsRequestTimeout(t *testing.T) {
+	cfg := &Config{
+		Agents: AgentsConfig{Defaults: AgentDefaults{RequestTimeoutSeconds: 12}},
+		Providers: map[string]ModelConfig{
+			"openai": {APIKey: "k"},
+		},
+	}
+
+	modelCfg, err := cfg.FindModel("openai/gpt-4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if modelCfg.RequestTimeout != 12*time.Second {
+		t.Errorf("expected 12s, got %s", modelCfg.RequestTimeout)
+	}
+}
 
 func TestLoad_WithDefaults(t *testing.T) {
 	// Test loading with no config file - should use defaults

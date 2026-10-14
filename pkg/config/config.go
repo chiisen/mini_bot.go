@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chiisen/mini_bot/pkg/i18n"
 )
@@ -30,6 +31,9 @@ type AgentDefaults struct {
 	MaxToolIterations   int     `json:"maxToolIterations"`
 	MemoryWindow        int     `json:"memoryWindow"`
 	RestrictToWorkspace bool    `json:"restrictToWorkspace"`
+
+	// RequestTimeoutSeconds 是單次 LLM 請求的逾時秒數；<= 0 時採用預設值
+	RequestTimeoutSeconds int `json:"requestTimeoutSeconds"`
 }
 
 type ModelConfig struct {
@@ -37,8 +41,9 @@ type ModelConfig struct {
 	APIBase string `json:"apiBase,omitempty"`
 
 	// internal fields
-	Vendor string `json:"-"`
-	Model  string `json:"-"`
+	Vendor         string        `json:"-"`
+	Model          string        `json:"-"`
+	RequestTimeout time.Duration `json:"-"`
 }
 
 type ChannelsConfig struct {
@@ -110,6 +115,7 @@ func applyDefaults(cfg *Config) {
 	cfg.Agents.Defaults.Temperature = DefaultTemperature
 	cfg.Agents.Defaults.MaxToolIterations = DefaultMaxToolIterations
 	cfg.Agents.Defaults.RestrictToWorkspace = DefaultRestrictToWS
+	cfg.Agents.Defaults.RequestTimeoutSeconds = DefaultRequestTimeoutSeconds
 	cfg.Language = DefaultLanguage
 }
 
@@ -167,6 +173,11 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Agents.Defaults.RestrictToWorkspace = val
 		}
 	}
+	if v := os.Getenv("MINIBOT_AGENTS_DEFAULTS_REQUEST_TIMEOUT_SECONDS"); v != "" {
+		if val, err := strconv.Atoi(v); err == nil {
+			cfg.Agents.Defaults.RequestTimeoutSeconds = val
+		}
+	}
 
 	if v := os.Getenv("MINIBOT_PROVIDERS_MINIMAX_API_KEY"); v != "" {
 		if cfg.Providers == nil {
@@ -201,10 +212,23 @@ func (c *Config) FindModel(modelDef string) (*ModelConfig, error) {
 	if p, ok := c.Providers[vendor]; ok {
 		p.Vendor = vendor
 		p.Model = modelDef // store the full model string to pass down to factory
+		p.RequestTimeout = c.requestTimeout()
 		return &p, nil
 	}
 
 	return nil, fmt.Errorf("model not found: %s", modelDef)
+}
+
+// requestTimeout 回傳單次 LLM 請求的逾時時間。
+//
+// 設定值 <= 0 時一律採用預設值：http.Client 的 0 代表「不設逾時」，
+// 在本地助理的情境下寧可有明確上限，也不要讓請求無限等待。
+func (c *Config) requestTimeout() time.Duration {
+	seconds := c.Agents.Defaults.RequestTimeoutSeconds
+	if seconds <= 0 {
+		seconds = DefaultRequestTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // expandHome resolves "~" to the user's home directory.
