@@ -13,7 +13,8 @@
       "status": "Print system status"
     },
     "unknown_command": "Unknown command: %s",
-    "error": "Error: %v"
+    "error": "Error: %v",
+    "gateway_no_channels": "no channels available: set channels.telegram.botToken in config.json (with enabled = true), or run 'app agent' instead"
   },
   "agent": {
     "start": "MiniBot.go Interactive Mode Started (type 'exit' or 'quit' to leave)",

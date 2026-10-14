@@ -13,7 +13,8 @@
       "status": "顯示系統狀態"
     },
     "unknown_command": "未知指令: %s",
-    "error": "錯誤: %v"
+    "error": "錯誤: %v",
+    "gateway_no_channels": "沒有可用的頻道：請在 config.json 設定 channels.telegram.botToken（並將 enabled 設為 true），或改用 'app agent'"
   },
   "agent": {
     "start": "MiniBot.go 互動模式已啟動 (輸入 'exit' 或 'quit' 離開)",

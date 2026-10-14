@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chiisen/mini_bot/pkg/bus"
@@ -20,26 +23,69 @@ type TelegramChannel struct {
 	AllowFrom map[string]bool
 	Bus       *bus.MessageBus
 	client    *http.Client
+
+	// offsetPath 是長輪詢 offset 的持久化位置；空字串代表不持久化
+	offsetPath string
 }
 
-func NewTelegramChannel(cfg *config.TelegramConfig, b *bus.MessageBus) *TelegramChannel {
+func NewTelegramChannel(cfg *config.TelegramConfig, b *bus.MessageBus, offsetPath string) *TelegramChannel {
 	allowMap := make(map[string]bool)
 	for _, id := range cfg.AllowFrom {
 		allowMap[id] = true
 	}
 
 	return &TelegramChannel{
-		Token:     cfg.Token,
-		AllowFrom: allowMap,
-		Bus:       b,
-		client:    &http.Client{Timeout: 60 * time.Second}, // Longer timeout for long polling
+		Token:      cfg.Token,
+		AllowFrom:  allowMap,
+		Bus:        b,
+		client:     &http.Client{Timeout: 60 * time.Second}, // Longer timeout for long polling
+		offsetPath: offsetPath,
+	}
+}
+
+// loadOffset 讀回上次的長輪詢 offset。
+//
+// Telegram 要等到下一次 getUpdates 帶入更大的 offset 才會確認前一批更新，因此
+// 行程若在兩次輪詢之間結束，那些更新會重新送達並被當成新訊息處理（使用者會收到
+// 重複回覆）。把 offset 持久化可以把這個視窗縮到最小。
+func (t *TelegramChannel) loadOffset() int {
+	if t.offsetPath == "" {
+		return 0
+	}
+
+	data, err := os.ReadFile(t.offsetPath)
+	if err != nil {
+		return 0
+	}
+
+	offset, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || offset < 0 {
+		return 0
+	}
+
+	return offset
+}
+
+// saveOffset 寫入目前的 offset；失敗只記錄，不中斷輪詢。
+func (t *TelegramChannel) saveOffset(offset int) {
+	if t.offsetPath == "" {
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(t.offsetPath), 0755); err != nil {
+		logger.Error("failed to create telegram offset directory", "error", err)
+		return
+	}
+
+	if err := os.WriteFile(t.offsetPath, []byte(strconv.Itoa(offset)), 0600); err != nil {
+		logger.Error("failed to persist telegram offset", "error", err)
 	}
 }
 
 func (t *TelegramChannel) Start(ctx context.Context) error {
 	logger.Info("Starting Telegram Channel (Long Polling)...")
 
-	offset := 0
+	offset := t.loadOffset()
 
 	for {
 		select {
@@ -56,6 +102,8 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 			time.Sleep(5 * time.Second) // backoff on error
 			continue
 		}
+
+		previousOffset := offset
 
 		for _, update := range updates {
 			// Update offset to acknowledge receipt
@@ -95,6 +143,12 @@ func (t *TelegramChannel) Start(ctx context.Context) error {
 			// Handle replies asynchronously directly in the loop or spawn a worker
 			// Since MVP, we spawn a simple goroutine to listen to the reply and send back
 			go t.listenForReplies(ctx, chatIDStr, replyChan)
+		}
+
+		// 整批都送進 bus 之後才確認 offset：避免「已確認但從未被處理」的靜默遺失
+		// （取捨是崩潰時可能重複處理這一批，但這段視窗遠小於完全不持久化）
+		if offset != previousOffset {
+			t.saveOffset(offset)
 		}
 	}
 }
