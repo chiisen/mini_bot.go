@@ -285,7 +285,23 @@ Agent: 根目錄底下有...
 - 📜 `pkg/session/`：對話歷史的持久化、記錄與載入。
 
 ## 🔐 安全性與 Sandbox
-請妥善管理 `agents.defaults.restrictToWorkspace` 參數。若為 `true`，AI 將被禁止讀寫 `~/.minibot.go/workspace` 目錄以外的所有磁碟路徑，並對危險指令 (如 `rm -rf /` 等) 進行封鎖，避免對您的系統造成潛在破壞。 🛡️
+
+**檔案工具**（`read_file`、`write_file`、`append_file`、`edit_file`、`list_dir`）一律經過沙盒檢查：路徑會展開 symlink 後確認落在 `~/.minibot.go/workspace` 之內，無法存取 workspace 以外的任何位置。沙盒無法關閉。
+
+**`exec` 工具不是作業系統層級的隔離。** 它只提供三層字串層級的防護：
+
+1. 拒絕含 shell 控制字元（`;` `|` `&` `$`、反引號、`(` `)` `<` `>`）的指令，要求拆成多個簡單指令——先前是悄悄剝除後照樣執行，會讓指令變成另一個東西
+2. 以 denylist 擋掉會解譯程式碼或破壞系統的指令（`bash`、`python`、`sudo`、`curl`、`shutdown`…）與危險樣式（`rm -rf /`、`mkfs`、`dd if=`…）
+3. 檢查指令中出現的路徑必須落在 workspace 之內（含 `../` 與 `~` 展開後的路徑）
+
+它以空白切分指令，**不處理引號與轉義的組合**，屬於盡力而為的防線，不是保證。**若你的威脅模型需要真正的隔離，請把 gateway 跑在容器裡**，讓容器邊界負責，而不是靠字串檢查：
+
+```bash
+docker build -t minibot .
+docker run -it --rm -v ~/.minibot.go:/root/.minibot.go minibot gateway
+```
+
+對話歷史以 `0600` 權限保存在 `workspace/sessions/`，`config.json` 由 `onboard` 建立時同樣是 `0600`。 🛡️
 
 ### 對話會話管理流程
 ```mermaid

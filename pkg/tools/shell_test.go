@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -116,6 +117,84 @@ func TestIsCommandSafe(t *testing.T) {
 	for _, cmd := range unsafeCommands {
 		if isCommandSafe(cmd) {
 			t.Errorf("expected unsafe command to fail: %s", cmd)
+		}
+	}
+}
+
+// TestExecTool_RejectsShellMetacharacters 驗證含 shell 控制字元的指令會被明確拒絕。
+//
+// 先前這些字元會被悄悄剝除後照樣執行（`find . | wc -l` 變成 `find . wc -l`），
+// 使用者拿到與原指令無關的結果；現在改為拒絕並說明原因。
+func TestExecTool_RejectsShellMetacharacters(t *testing.T) {
+	tmpDir := t.TempDir()
+	sandbox, _ := NewSandbox(tmpDir)
+	tool := ExecTool{Sandbox: sandbox}
+
+	rejected := []string{
+		"ls; whoami",
+		"find . | wc -l",
+		"echo hi > out.txt",
+		"cat a && cat b",
+		"echo $(whoami)",
+		"echo `id`",
+		"ls < input.txt",
+	}
+
+	for _, cmd := range rejected {
+		result := tool.Execute(context.Background(), map[string]any{"command": cmd})
+		if !result.IsError {
+			t.Errorf("expected %q to be rejected", cmd)
+			continue
+		}
+		if !strings.Contains(result.ForLLM, "metacharacters") {
+			t.Errorf("expected a metacharacter rejection for %q, got: %s", cmd, result.ForLLM)
+		}
+	}
+}
+
+// TestExecTool_RejectsPathEscape 驗證指令中指向 workspace 之外的路徑會被拒絕。
+//
+// exec 無法真正隔離 shell，但至少必須擋掉最常見的越界存取
+// （cat /etc/passwd、find /、../ 或 ~ 展開後的家目錄）。
+func TestExecTool_RejectsPathEscape(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		t.Fatalf("failed to create workspace: %v", err)
+	}
+	sandbox, _ := NewSandbox(workspace)
+	tool := ExecTool{Sandbox: sandbox}
+
+	outside := []string{
+		"cat /etc/passwd",
+		"find / -name passwd",
+		"cat ../secret.txt",
+		"ls ~",
+		"grep -r secret /Users",
+	}
+
+	for _, cmd := range outside {
+		result := tool.Execute(context.Background(), map[string]any{"command": cmd})
+		if !result.IsError || !strings.Contains(result.ForLLM, "outside workspace") {
+			t.Errorf("expected %q to be rejected as outside workspace, got: %s", cmd, result.ForLLM)
+		}
+	}
+}
+
+// TestExecTool_AllowsWorkspacePaths 驗證 workspace 內的相對路徑仍可正常執行。
+func TestExecTool_AllowsWorkspacePaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	sandbox, _ := NewSandbox(tmpDir)
+	tool := ExecTool{Sandbox: sandbox}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "note.txt"), []byte("hello from workspace"), 0600); err != nil {
+		t.Fatalf("failed to prepare file: %v", err)
+	}
+
+	for _, cmd := range []string{"cat note.txt", "cat ./note.txt", "ls -la", "grep -r hello ."} {
+		result := tool.Execute(context.Background(), map[string]any{"command": cmd})
+		if result.IsError {
+			t.Errorf("expected %q to be allowed, got: %s", cmd, result.ForLLM)
 		}
 	}
 }
