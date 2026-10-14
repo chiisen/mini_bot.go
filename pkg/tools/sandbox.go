@@ -25,7 +25,9 @@ func NewSandbox(workspacePath string) (*Sandbox, error) {
 	}
 	absPath = filepath.Clean(absPath)
 
-	if err := os.MkdirAll(absPath, 0755); err != nil {
+	// 權限 0700：workspace 內含對話歷史與人格檔，且 pkg/config 會對過於寬鬆的
+	// workspace 權限發出警告——建立時就該給它期望的權限
+	if err := os.MkdirAll(absPath, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create workspace directory: %w", err)
 	}
 

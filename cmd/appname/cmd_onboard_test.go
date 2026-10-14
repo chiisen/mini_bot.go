@@ -102,6 +102,64 @@ func TestValidateConfigFile(t *testing.T) {
 	})
 }
 
+// TestRunOnboard_CreatesRestrictedFiles 驗證 onboard 建立的目錄與檔案權限。
+//
+// 先前 workspace 與子目錄是 0755，而 pkg/config 的 checkWorkspaceIsolation 正是對
+// 0755 發出警告——等於程式每次載入都警告自己造成的狀況。
+func TestRunOnboard_CreatesRestrictedFiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 保險：家目錄沒有真的被導到臨時目錄就不要跑，免得寫進真實的家目錄
+	if resolved, err := os.UserHomeDir(); err != nil || resolved != home {
+		t.Skipf("此環境無法把家目錄指向臨時目錄（得到 %q），略過", resolved)
+	}
+
+	// 模擬使用者在 API Key 提示直接按 Enter
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	origStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = origStdin })
+
+	if _, err := w.WriteString("\n"); err != nil {
+		t.Fatalf("failed to write to pipe: %v", err)
+	}
+	w.Close()
+
+	if err := RunOnboard(nil); err != nil {
+		t.Fatalf("RunOnboard failed: %v", err)
+	}
+
+	configDir := filepath.Join(home, ".minibot.go")
+	checks := []struct {
+		path string
+		want os.FileMode
+	}{
+		{configDir, 0700},
+		{filepath.Join(configDir, "workspace"), 0700},
+		{filepath.Join(configDir, "workspace", "sessions"), 0700},
+		{filepath.Join(configDir, "workspace", "memory"), 0700},
+		{filepath.Join(configDir, "config.json"), 0600},
+		{filepath.Join(configDir, "workspace", "AGENT.md"), 0600},
+		{filepath.Join(configDir, "workspace", "IDENTITY.md"), 0600},
+	}
+
+	for _, c := range checks {
+		info, err := os.Stat(c.path)
+		if err != nil {
+			t.Errorf("expected %s to exist: %v", c.path, err)
+			continue
+		}
+		if got := info.Mode().Perm(); got != c.want {
+			t.Errorf("%s: expected %04o, got %04o", c.path, c.want, got)
+		}
+	}
+}
+
 // TestIsPlaceholderToken 驗證範本佔位字串會被辨識，不會拿去呼叫 Telegram API。
 func TestIsPlaceholderToken(t *testing.T) {
 	cases := []struct {

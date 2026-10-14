@@ -46,7 +46,8 @@ func (m *MemoryManager) Append(content string) error {
 	}
 
 	// 目錄不一定存在（只有 onboard 會建立 workspace/memory），寫入前自行建立
-	if err := os.MkdirAll(filepath.Dir(m.MemoryPath), 0755); err != nil {
+	// 權限 0700：記憶內容會被讀進系統提示詞
+	if err := os.MkdirAll(filepath.Dir(m.MemoryPath), 0700); err != nil {
 		return fmt.Errorf("failed to create memory directory: %w", err)
 	}
 

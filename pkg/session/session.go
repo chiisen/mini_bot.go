@@ -112,7 +112,8 @@ func (m *Manager) Save(sessionKey string, messages []providers.Message) error {
 	// 確保儲存目錄存在。只有走過 `app onboard` 的預設 workspace 才會有 sessions
 	// 目錄；以環境變數或 config 指定其他 workspace 時（例如
 	// MINIBOT_AGENTS_DEFAULTS_WORKSPACE），若不在這裡建立，寫入就會失敗。
-	if err := os.MkdirAll(m.StorageDir, 0755); err != nil {
+	// 權限 0700：會話內容是完整對話記錄
+	if err := os.MkdirAll(m.StorageDir, 0700); err != nil {
 		return fmt.Errorf("failed to create session directory %s: %w", m.StorageDir, err)
 	}
 

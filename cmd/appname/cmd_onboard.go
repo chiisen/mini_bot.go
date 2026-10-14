@@ -83,6 +83,9 @@ func RunOnboard(args []string) error {
 	}
 
 	// Create directories
+	// 權限 0700：workspace 內含對話歷史與人格檔，而 config.checkWorkspaceIsolation
+	// 就是對 0755 這類權限發出警告——先前 onboard 自己建立 0755，等於每次載入都
+	// 警告自己造成的狀況
 	dirs := []string{
 		configDir,
 		workspaceDir,
@@ -91,7 +94,7 @@ func RunOnboard(args []string) error {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
@@ -130,7 +133,8 @@ func RunOnboard(args []string) error {
 	for name, content := range files {
 		path := filepath.Join(workspaceDir, name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			// 權限 0600：與檔案工具寫入時一致，只有所有者可讀寫
+			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 				return fmt.Errorf("failed to write %s: %w", path, err)
 			}
 			fmt.Printf("✅ Created %s\n", path)
