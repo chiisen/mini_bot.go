@@ -88,16 +88,16 @@ func TestBus_StalledReplyChannelDoesNotBlockOtherChats(t *testing.T) {
 	b.Start(ctx)
 
 	// 第一個訊息：容量 1 且沒有人讀取，而 Run 會產生兩則回覆
-	stalled := make(chan string, 1)
+	stalled := make(chan Reply, 1)
 	b.Send(InboundMessage{Channel: "telegram", ChatID: "1", Content: "first", SessionKey: "s1", ReplyChan: stalled})
 
 	// 第二個訊息：不同聊天室、正常的通道
-	ok := make(chan string, 10)
+	ok := make(chan Reply, 10)
 	b.Send(InboundMessage{Channel: "telegram", ChatID: "2", Content: "second", SessionKey: "s2", ReplyChan: ok})
 
 	select {
 	case reply := <-ok:
-		if reply == "" {
+		if reply.Text == "" {
 			t.Error("expected a non-empty reply")
 		}
 	case <-time.After(3 * time.Second):
@@ -108,7 +108,7 @@ func TestBus_StalledReplyChannelDoesNotBlockOtherChats(t *testing.T) {
 // TestBus_DeliverWithoutReplyChan 驗證沒有回覆通道時不阻塞也不 panic。
 func TestBus_DeliverWithoutReplyChan(t *testing.T) {
 	b := newTestBus(t)
-	b.deliver(context.Background(), nil, "reply")
+	b.deliver(context.Background(), nil, Reply{Text: "reply"})
 }
 
 // TestBus_DeliverStopsWhenContextCancelled 驗證 bus 關閉時不會卡在投遞。
@@ -119,12 +119,12 @@ func TestBus_DeliverStopsWhenContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	ch := make(chan string, 1)
-	ch <- "filled" // 讓通道滿載，投遞只能靠 context 結束收尾
+	ch := make(chan Reply, 1)
+	ch <- Reply{Text: "filled"} // 讓通道滿載，投遞只能靠 context 結束收尾
 
 	done := make(chan struct{})
 	go func() {
-		b.deliver(ctx, ch, "reply")
+		b.deliver(ctx, ch, Reply{Text: "reply"})
 		close(done)
 	}()
 
