@@ -6,7 +6,6 @@ const (
 	DefaultMaxTokens             = 8192
 	DefaultTemperature           = 0.7
 	DefaultMaxToolIterations     = 20
-	DefaultRestrictToWS          = true
 	DefaultConfigDir             = "~/.minibot.go"
 	DefaultConfigFile            = "~/.minibot.go/config.json"
 	DefaultLanguage              = "en"

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -134,5 +135,72 @@ func TestMemoryManager_Append_StoresContentVerbatim(t *testing.T) {
 				t.Errorf("expected '%s', got '%s'", expected, string(data))
 			}
 		})
+	}
+}
+
+// ============================================================================
+// MemoryWriteTool: 長期記憶的寫入端
+// ============================================================================
+
+// TestMemoryWriteTool_Execute 驗證工具把內容寫進記憶檔，且讀得回來。
+func TestMemoryWriteTool_Execute(t *testing.T) {
+	memoryPath := filepath.Join(t.TempDir(), "memory", "MEMORY.md")
+	tool := &MemoryWriteTool{Memory: NewMemoryManager(memoryPath)}
+
+	result := tool.Execute(context.Background(), map[string]any{"content": "使用者偏好繁體中文"})
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.ForLLM)
+	}
+
+	data, err := os.ReadFile(memoryPath)
+	if err != nil {
+		t.Fatalf("記憶檔未被建立: %v", err)
+	}
+	if string(data) != "使用者偏好繁體中文\n" {
+		t.Errorf("unexpected memory content: %q", string(data))
+	}
+}
+
+// TestMemoryWriteTool_CreatesDirectory 驗證目錄不存在時仍可寫入
+// （只有 onboard 會建立 workspace/memory）。
+func TestMemoryWriteTool_CreatesDirectory(t *testing.T) {
+	memoryPath := filepath.Join(t.TempDir(), "nonexistent", "memory", "MEMORY.md")
+	tool := &MemoryWriteTool{Memory: NewMemoryManager(memoryPath)}
+
+	if result := tool.Execute(context.Background(), map[string]any{"content": "note"}); result.IsError {
+		t.Fatalf("unexpected error: %s", result.ForLLM)
+	}
+	if _, err := os.Stat(memoryPath); err != nil {
+		t.Errorf("expected the memory file to exist: %v", err)
+	}
+}
+
+// TestMemoryWriteTool_RejectsEmptyContent 驗證空內容會被拒絕。
+func TestMemoryWriteTool_RejectsEmptyContent(t *testing.T) {
+	tool := &MemoryWriteTool{Memory: NewMemoryManager(filepath.Join(t.TempDir(), "MEMORY.md"))}
+
+	for _, args := range []map[string]any{{}, {"content": ""}, {"content": "   "}} {
+		if result := tool.Execute(context.Background(), args); !result.IsError {
+			t.Errorf("expected empty content to be rejected, args=%v", args)
+		}
+	}
+}
+
+// TestMemoryWriteTool_Schema 驗證工具名稱與參數 schema（LLM 靠這些資訊呼叫工具）。
+func TestMemoryWriteTool_Schema(t *testing.T) {
+	tool := &MemoryWriteTool{Memory: NewMemoryManager("unused")}
+
+	if tool.Name() != "memory_write" {
+		t.Errorf("expected name memory_write, got %s", tool.Name())
+	}
+
+	params := tool.Parameters()
+	if params["type"] != "object" {
+		t.Errorf("expected an object schema, got %v", params["type"])
+	}
+
+	required, ok := params["required"].([]string)
+	if !ok || len(required) != 1 || required[0] != "content" {
+		t.Errorf("expected content to be required, got %v", params["required"])
 	}
 }

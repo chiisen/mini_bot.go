@@ -5,7 +5,6 @@
       "maxTokens": 8192,
       "temperature": 0.7,
       "maxToolIterations": 20,
-      "memoryWindow": 50,
       "requestTimeoutSeconds": 60,
       "workspace": "~/.minibot.go/workspace"
     }

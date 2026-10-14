@@ -36,7 +36,8 @@
     "edit_file": "替換指定行範圍的內容 (從 1 開始編號)",
     "list_dir": "列出目錄內容",
     "execute_command": "執行終端機指令並返回輸出",
-    "web_search": "使用 DuckDuckGo 搜尋網路資訊"
+    "web_search": "使用 DuckDuckGo 搜尋網路資訊",
+    "memory_write": "寫入值得跨對話記住的事情"
   },
   "tool_params": {
     "path": "檔案路徑 (相對於工作區)",
@@ -46,7 +47,8 @@
     "start_line": "起始行號 (從 1 開始)",
     "end_line": "結束行號 (從 1 開始，包含)",
     "new_content": "要替換的新內容",
-    "command": "要執行的終端機指令"
+    "command": "要執行的終端機指令",
+    "memory_content": "要記住的內容 (會原文寫入記憶檔)"
   },
   "errors": {
     "tool_not_found": "找不到工具 '%s'。",

@@ -81,10 +81,6 @@ func TestLoad_WithDefaults(t *testing.T) {
 	if cfg.Agents.Defaults.MaxToolIterations != DefaultMaxToolIterations {
 		t.Errorf("expected maxToolIterations %d, got %d", DefaultMaxToolIterations, cfg.Agents.Defaults.MaxToolIterations)
 	}
-
-	if !cfg.Agents.Defaults.RestrictToWorkspace {
-		t.Error("expected restrictToWorkspace to be true by default")
-	}
 }
 
 func TestLoad_WithJSONFile(t *testing.T) {
@@ -98,8 +94,7 @@ func TestLoad_WithJSONFile(t *testing.T) {
 				"model": "minimax/MiniMax-M2.5",
 				"maxTokens": 16384,
 				"temperature": 0.9,
-				"maxToolIterations": 30,
-				"restrictToWorkspace": false
+				"maxToolIterations": 30
 			}
 		},
 		"providers": {
@@ -146,10 +141,6 @@ func TestLoad_WithJSONFile(t *testing.T) {
 		t.Errorf("expected maxToolIterations 30, got %d", cfg.Agents.Defaults.MaxToolIterations)
 	}
 
-	if cfg.Agents.Defaults.RestrictToWorkspace {
-		t.Error("expected restrictToWorkspace to be false")
-	}
-
 	// Check provider
 	provider, ok := cfg.Providers["minimax"]
 	if !ok {
@@ -181,14 +172,12 @@ func TestLoad_WithEnvOverrides(t *testing.T) {
 	os.Setenv("MINIBOT_AGENTS_DEFAULTS_MAX_TOKENS", "4096")
 	os.Setenv("MINIBOT_AGENTS_DEFAULTS_TEMPERATURE", "0.5")
 	os.Setenv("MINIBOT_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS", "10")
-	os.Setenv("MINIBOT_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE", "false")
 	defer func() {
 		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_WORKSPACE")
 		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_MODEL")
 		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_MAX_TOKENS")
 		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_TEMPERATURE")
 		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS")
-		os.Unsetenv("MINIBOT_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE")
 	}()
 
 	cfg, err := Load("/nonexistent/path.json")
@@ -214,10 +203,6 @@ func TestLoad_WithEnvOverrides(t *testing.T) {
 
 	if cfg.Agents.Defaults.MaxToolIterations != 10 {
 		t.Errorf("expected maxToolIterations 10, got %d", cfg.Agents.Defaults.MaxToolIterations)
-	}
-
-	if cfg.Agents.Defaults.RestrictToWorkspace {
-		t.Error("expected restrictToWorkspace to be false")
 	}
 }
 

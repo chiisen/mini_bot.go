@@ -126,6 +126,11 @@ func NewInstance(cfg *config.Config) (*AgentInstance, error) {
 	// 註冊網路工具
 	registry.Register(&tools.WebSearchTool{}) // 網路搜尋
 
+	// 註冊長期記憶工具：寫入 workspace/memory/MEMORY.md，
+	// 下次對話時會由 ContextBuilder 讀進系統提示詞的 [MEMORY] 區段
+	memoryMgr := NewMemoryManager(filepath.Join(workspaceDir, "memory", "MEMORY.md"))
+	registry.Register(&MemoryWriteTool{Memory: memoryMgr})
+
 	// -------------------------------------------------------------------------
 	// 步驟 5: 建立對話會話管理器
 	// -------------------------------------------------------------------------

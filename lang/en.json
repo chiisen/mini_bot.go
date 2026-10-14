@@ -36,7 +36,8 @@
     "edit_file": "Replace content in a line range (1-indexed, inclusive)",
     "list_dir": "List contents of a directory",
     "execute_command": "Execute a shell command and return its output",
-    "web_search": "Search the web for information using DuckDuckGo"
+    "web_search": "Search the web for information using DuckDuckGo",
+    "memory_write": "Save something worth remembering across conversations"
   },
   "tool_params": {
     "path": "Path to the file relative to workspace",
@@ -46,7 +47,8 @@
     "start_line": "Starting line number (1-indexed)",
     "end_line": "Ending line number (1-indexed, inclusive)",
     "new_content": "New content to replace within the range",
-    "command": "Shell command to execute"
+    "command": "Shell command to execute",
+    "memory_content": "What to remember (stored verbatim in the memory file)"
   },
   "errors": {
     "tool_not_found": "Tool '%s' not found.",

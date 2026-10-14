@@ -24,13 +24,11 @@ type AgentsConfig struct {
 }
 
 type AgentDefaults struct {
-	Workspace           string  `json:"workspace"`
-	Model               string  `json:"model"`
-	MaxTokens           int     `json:"maxTokens"`
-	Temperature         float64 `json:"temperature"`
-	MaxToolIterations   int     `json:"maxToolIterations"`
-	MemoryWindow        int     `json:"memoryWindow"`
-	RestrictToWorkspace bool    `json:"restrictToWorkspace"`
+	Workspace         string  `json:"workspace"`
+	Model             string  `json:"model"`
+	MaxTokens         int     `json:"maxTokens"`
+	Temperature       float64 `json:"temperature"`
+	MaxToolIterations int     `json:"maxToolIterations"`
 
 	// RequestTimeoutSeconds 是單次 LLM 請求的逾時秒數；<= 0 時採用預設值
 	RequestTimeoutSeconds int `json:"requestTimeoutSeconds"`
@@ -114,7 +112,6 @@ func applyDefaults(cfg *Config) {
 	cfg.Agents.Defaults.MaxTokens = DefaultMaxTokens
 	cfg.Agents.Defaults.Temperature = DefaultTemperature
 	cfg.Agents.Defaults.MaxToolIterations = DefaultMaxToolIterations
-	cfg.Agents.Defaults.RestrictToWorkspace = DefaultRestrictToWS
 	cfg.Agents.Defaults.RequestTimeoutSeconds = DefaultRequestTimeoutSeconds
 	cfg.Language = DefaultLanguage
 }
@@ -166,11 +163,6 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("MINIBOT_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
 			cfg.Agents.Defaults.MaxToolIterations = val
-		}
-	}
-	if v := os.Getenv("MINIBOT_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"); v != "" {
-		if val, err := strconv.ParseBool(v); err == nil {
-			cfg.Agents.Defaults.RestrictToWorkspace = val
 		}
 	}
 	if v := os.Getenv("MINIBOT_AGENTS_DEFAULTS_REQUEST_TIMEOUT_SECONDS"); v != "" {

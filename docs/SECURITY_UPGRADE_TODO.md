@@ -75,10 +75,10 @@ if !strings.HasPrefix(absTargetPath, s.Workspace) {
 **問題**: 使用者輸入未經清理即存入記憶體，可能導致 Agent 行為被操縱。
 
 **修復任務**:
-- [x] 新增輸入清理函數，檢測常見 injection 模式
-- [x] 實作特殊字元轉義 (`<`, `>`, `{`, `}`, `[`, `]`)
-- [x] 建立訊息長度限制
-- [x] 考慮使用 Markdown code block 包裝使用者輸入
+- [x] 新增注入樣式偵測 `ContainsInjectionPatterns`（僅回報並記錄 warning）
+- [x] 以 Markdown code block 包裝使用者輸入，並中和足以提早關閉界線的連續反引號
+- [x] 建立訊息長度限制（以 rune 計算，不切斷中文或 emoji）
+- [x] ~~實作特殊字元轉義 (`<`, `>`, `{`, `}`, `[`, `]`)~~ **2026-10-14 移除**：轉義對防護沒有實質幫助，卻會破壞使用者貼上的程式碼與 JSON；防護改由界線承擔（見 issue #8）
 
 **參考實作位置**: `pkg/agent/memory.go:25-35`
 
@@ -118,9 +118,9 @@ if !strings.HasPrefix(absTargetPath, s.Workspace) {
 **問題**: 無法防止 API 濫用或 DoS 攻擊。
 
 **修復任務**:
-- [x] 在 agent loop 中實作工具呼叫次數限制
-- [x] 新增每分鐘請求數限制
-- [x] 記錄異常使用模式
+- [x] 在 agent loop 中實作工具呼叫次數限制（`agents.defaults.maxToolIterations`）
+- [x] ~~新增每分鐘請求數限制~~ **2026-10-14 移除**：`RateLimiter` 從未被任何地方呼叫；Telegram 的 `allow_from` 白名單已把來源限縮到擁有者，維護死碼的成本高於其防護價值。日後若開放多人使用再實作（見 issue #7）
+- [ ] 記錄異常使用模式（目前僅有一般日誌，沒有異常使用模式的分析）
 
 ---
 
@@ -183,3 +183,5 @@ if !strings.HasPrefix(absTargetPath, s.Workspace) {
 ---
 
 *本檔案由 AI Agent 自動生成，用於追蹤安全升級進度。*
+
+> ⚠️ 本清單的勾選狀態撰寫於 2026-02，部分項目與實作不符。標註日期的項目已於該日修正；其餘仍待逐項核對（見 issue #10）。
