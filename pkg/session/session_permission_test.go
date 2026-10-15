@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/chiisen/mini_bot/pkg/providers"
@@ -25,7 +26,10 @@ func TestManager_Save_FilePermission(t *testing.T) {
 		t.Fatalf("failed to stat session file: %v", err)
 	}
 
-	if got := info.Mode().Perm(); got != 0600 {
-		t.Errorf("expected session file mode 0600, got %04o", got)
+	// Windows 的 os.Stat 對可寫檔固定回報 0666，無法觀察 0600。
+	if runtime.GOOS != "windows" {
+		if got := info.Mode().Perm(); got != 0600 {
+			t.Errorf("expected session file mode 0600, got %04o", got)
+		}
 	}
 }

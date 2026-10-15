@@ -60,7 +60,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 
 	// After loading, workspace is expanded from ~/.minibot.go/workspace to actual path
 	home, _ := os.UserHomeDir()
-	expectedWorkspace := home + "/.minibot.go/workspace"
+	expectedWorkspace := filepath.Join(home, ".minibot.go", "workspace")
 
 	if cfg.Agents.Defaults.Workspace != expectedWorkspace {
 		t.Errorf("expected workspace %s, got %s", expectedWorkspace, cfg.Agents.Defaults.Workspace)

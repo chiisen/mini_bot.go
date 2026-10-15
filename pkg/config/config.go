@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -269,6 +270,11 @@ func checkFilePermissions(path string) {
 		return
 	}
 	mode := info.Mode().Perm()
+	// Windows 的 os.Stat 對一般檔固定回報 0666，Chmod 也只能切換唯讀位元，
+	// 這個數值不代表其他使用者讀得到檔案。
+	if runtime.GOOS == "windows" {
+		return
+	}
 	if mode&0077 != 0 {
 		t := i18n.GetInstance()
 		fmt.Printf(t.T("warnings.config_permissions")+"\n", path, mode)
@@ -287,6 +293,10 @@ func checkWorkspaceIsolation(workspace string) error {
 		return fmt.Errorf("workspace is not a directory: %s", workspace)
 	}
 	mode := info.Mode().Perm()
+	// Windows 的目錄固定回報 0777，並非權限過度寬鬆。
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	if mode&0077 != 0 {
 		t := i18n.GetInstance()
 		fmt.Printf(t.T("warnings.workspace_permissions")+"\n", workspace, mode)

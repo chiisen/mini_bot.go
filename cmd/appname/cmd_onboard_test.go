@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/chiisen/mini_bot/pkg/config"
@@ -152,6 +153,10 @@ func TestRunOnboard_CreatesRestrictedFiles(t *testing.T) {
 		info, err := os.Stat(c.path)
 		if err != nil {
 			t.Errorf("expected %s to exist: %v", c.path, err)
+			continue
+		}
+		// Windows 的 os.Stat 對目錄固定 0777、可寫檔固定 0666。
+		if runtime.GOOS == "windows" {
 			continue
 		}
 		if got := info.Mode().Perm(); got != c.want {

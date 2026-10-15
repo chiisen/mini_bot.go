@@ -3,6 +3,7 @@ package channels
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/chiisen/mini_bot/pkg/config"
@@ -30,8 +31,11 @@ func TestTelegramChannel_OffsetPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("offset 檔案未被建立: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0600 {
-		t.Errorf("expected 0600, got %04o", perm)
+	// Windows 的 os.Stat 對可寫檔固定回報 0666，無法觀察 0600。
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0600 {
+			t.Errorf("expected 0600, got %04o", perm)
+		}
 	}
 
 	// 內容損壞時視為 0，而不是讓輪詢帶著錯誤的 offset 繼續
