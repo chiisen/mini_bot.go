@@ -41,16 +41,32 @@ func NewSandbox(workspacePath string) (*Sandbox, error) {
 	}, nil
 }
 
-func (s *Sandbox) isSubPath(path string) bool {
-	checkPath := path
+// pathContained 判斷 target 是否等於 workspace，或是它的子路徑。
+//
+// foldCase 為 true 時，前綴比對與逐層回溯共用同一份小寫字串。Windows 的
+// 路徑比對不區分大小寫，但回傳給呼叫端的路徑必須維持原始大小寫；因此
+// 小寫只存在於這份比較用副本，不能寫回原始路徑。
+func pathContained(workspace, target string, foldCase bool) bool {
+	cmpWorkspace, cmpTarget := workspace, target
+	if foldCase {
+		cmpWorkspace = strings.ToLower(workspace)
+		cmpTarget = strings.ToLower(target)
+	}
+
+	if cmpTarget != cmpWorkspace && !strings.HasPrefix(cmpTarget, cmpWorkspace+string(filepath.Separator)) {
+		return false
+	}
+
+	checkPath := cmpTarget
 	for {
-		if checkPath == s.Workspace {
+		if checkPath == cmpWorkspace {
 			return true
 		}
-		if checkPath == filepath.Dir(checkPath) {
+		parent := filepath.Dir(checkPath)
+		if parent == checkPath {
 			return false
 		}
-		checkPath = filepath.Dir(checkPath)
+		checkPath = parent
 	}
 }
 
@@ -68,17 +84,8 @@ func (s *Sandbox) CheckPath(inputPath string) (string, error) {
 		return "", fmt.Errorf("invalid path: %v", err)
 	}
 
-	workspace := s.Workspace
-	if runtime.GOOS == "windows" {
-		workspace = strings.ToLower(workspace)
-		absTargetPath = strings.ToLower(absTargetPath)
-	}
-
-	if absTargetPath != workspace && !strings.HasPrefix(absTargetPath, workspace+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes workspace bounds: %s", inputPath)
-	}
-
-	if !s.isSubPath(absTargetPath) {
+	// Windows 檔案系統不區分大小寫。比較時才折疊，回傳仍用 resolvePath 的原始大小寫。
+	if !pathContained(s.Workspace, absTargetPath, runtime.GOOS == "windows") {
 		return "", fmt.Errorf("path escapes workspace bounds: %s", inputPath)
 	}
 
